@@ -36,6 +36,7 @@
               eza
               fd
               rust-bin.stable.latest.default
+              rust-analyzer
             ];
           };
       }
