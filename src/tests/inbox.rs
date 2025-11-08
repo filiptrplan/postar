@@ -35,9 +35,22 @@ fn get_container() -> IMAPContainerData {
 }
 
 #[test]
-fn mytest() -> anyhow::Result<()> {
+fn test_new_tls_successful_connection() -> anyhow::Result<()> {
     let container_data = get_container();
+
+    // Test that new_tls successfully creates an Inbox with valid credentials
     let inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
 
     Ok(())
+}
+
+#[test]
+fn test_new_tls_invalid_host() {
+    // Test that new_tls fails with invalid host
+    let result = Inbox::new_tls("invalid.host.example.com", 993, "user", "pass", true);
+
+    // Should fail with connection error
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(err.to_string().contains("Failed to connect to IMAP server"));
 }
