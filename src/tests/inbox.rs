@@ -19,7 +19,7 @@ async fn get_container() -> IMAPContainerData {
     let container = GenericImage::new("greenmail/standalone", "2.1.7")
         .with_exposed_port(port.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Starting GreenMail"))
-        .with_wait_for(WaitFor::seconds(3))
+        .with_wait_for(WaitFor::seconds(1))
         .with_env_var(
             "GREENMAIL_OPTS",
             "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled -Dgreenmail.preload.dir=/tmp/preload -Dgreenmail.verbose",
@@ -67,8 +67,6 @@ async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
 
     let has_inbox = folders.iter().any(|f| f.name() == "INBOX");
     assert!(has_inbox, "Expected to find INBOX folder");
-
-    println!("{:?}", folders);
 
     let has_test1 = folders.iter().any(|f| f.name() == "INBOX.tests1");
     assert!(has_test1, "Expected to find INBOX.tests1 folder");
