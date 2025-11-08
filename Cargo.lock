@@ -1371,6 +1371,7 @@ dependencies = [
  "native-tls",
  "once_cell",
  "testcontainers",
+ "tokio",
 ]
 
 [[package]]

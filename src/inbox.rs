@@ -14,6 +14,12 @@ pub struct Folder {
     name: String,
 }
 
+impl Folder {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 #[derive(Debug)]
 pub struct Inbox<T: Read + Write> {
     /// The IMAP session that we use throughout the execution of the program
