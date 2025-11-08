@@ -8,11 +8,9 @@ fn main() {
     let pass = env::var("PASS").unwrap();
     let port = env::var("PORT").unwrap().parse::<u16>().unwrap();
 
-    let inbox = Inbox::new_tls(&domain, port, &user, &pass);
+    let mut inbox = Inbox::new_tls(&domain, port, &user, &pass).unwrap();
 
-    if let anyhow::Result::Err(err) = inbox {
-        println!("{:?}", err);
-    }
+    println!("{:?}", inbox.list_folders());
 
     // we want to fetch the first email in the INBOX mailbox
     // imap_session.select("INBOX").unwrap();

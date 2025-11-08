@@ -15,7 +15,7 @@ A local email filtering service.
 ## Arch
 
 - IMAP object
-  - stores login data
+  - D stores login data
   - methods to get emails
   - methods to get all folders
   - methods to apply filters

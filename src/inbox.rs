@@ -2,6 +2,7 @@ use anyhow::Context;
 use chrono::prelude::*;
 use native_tls::TlsStream;
 use std::{
+    borrow::Cow,
     io::{Read, Write},
     net::TcpStream,
 };
@@ -9,9 +10,14 @@ use std::{
 use imap::Session;
 
 #[derive(Debug)]
+pub struct Folder {
+    name: String,
+}
+
+#[derive(Debug)]
 pub struct Inbox<T: Read + Write> {
     /// The IMAP session that we use throughout the execution of the program
-    pub imap_session: Session<T>,
+    imap_session: Session<T>,
     /// The date of the last fetch. Used to periodically fetch new messages.
     last_fetch_date: DateTime<Local>,
     /// The main folder in which the messages arrive.
@@ -44,6 +50,18 @@ impl Inbox<TlsStream<TcpStream>> {
             last_fetch_date: DateTime::from_timestamp_nanos(0).into(),
             folder,
         })
+    }
+}
+
+impl<T: Read + Write> Inbox<T> {
+    pub fn list_folders(&mut self) -> anyhow::Result<Vec<Folder>> {
+        let results = self.imap_session.list(None, Some("*"));
+        Ok(results?
+            .iter()
+            .map(|x| Folder {
+                name: x.name().to_owned(),
+            })
+            .collect())
     }
 }
 
