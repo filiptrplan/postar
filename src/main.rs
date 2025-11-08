@@ -8,7 +8,7 @@ fn main() {
     let pass = env::var("PASS").unwrap();
     let port = env::var("PORT").unwrap().parse::<u16>().unwrap();
 
-    let mut inbox = Inbox::new_tls(&domain, port, &user, &pass).unwrap();
+    let mut inbox = Inbox::new_tls(&domain, port, &user, &pass, false).unwrap();
 
     println!("{:?}", inbox.list_folders());
 

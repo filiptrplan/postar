@@ -26,8 +26,16 @@ pub struct Inbox<T: Read + Write> {
 
 impl Inbox<TlsStream<TcpStream>> {
     /// Creates an `Inbox` using a `TlsConnector` using username/password credentials.
-    pub fn new_tls(domain: &str, port: u16, user: &str, pass: &str) -> anyhow::Result<Self> {
-        let tls = native_tls::TlsConnector::builder().build().unwrap();
+    pub fn new_tls(
+        domain: &str,
+        port: u16,
+        user: &str,
+        pass: &str,
+        use_self_signed_cert: bool,
+    ) -> anyhow::Result<Self> {
+        let tls = native_tls::TlsConnector::builder()
+            .danger_accept_invalid_certs(use_self_signed_cert)
+            .build()?;
 
         // we pass in the domain twice to check that the server's TLS
         // certificate is valid for the domain we're connecting to.
