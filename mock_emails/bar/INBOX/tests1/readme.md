@@ -1,0 +1,3 @@
+The cleaned up emails taken from [this github repo](https://github.com/aeshirey/EmlParser/). This is what the author of that repo had to say:
+
+Files 0-9 are just a handful that came from [this academic corpus of phishing emails](https://academictorrents.com/details/a77cda9a9d89a60dbdfbe581adf6e2df9197995a). Note that the files in this corpus all have a beginning line that contains "From nobody...". This isn't part of the .eml file specification, so rather than including this handling in the email parser, I cleaned up these files to remove those lines.

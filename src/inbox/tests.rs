@@ -1,4 +1,8 @@
-use std::env::current_dir;
+use std::{
+    env::current_dir,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
@@ -14,6 +18,10 @@ struct IMAPContainerData {
     container: ContainerAsync<GenericImage>,
 }
 
+fn get_mock_email_dir() -> PathBuf {
+    PathBuf::from(current_dir().unwrap().to_str().unwrap().to_owned() + "/mock_emails")
+}
+
 async fn get_container() -> IMAPContainerData {
     let port = 3993;
     let container = GenericImage::new("greenmail/standalone", "2.1.7")
@@ -24,7 +32,7 @@ async fn get_container() -> IMAPContainerData {
             "GREENMAIL_OPTS",
             "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled -Dgreenmail.preload.dir=/tmp/preload -Dgreenmail.verbose",
         )
-        .with_mount(Mount::bind_mount(current_dir().unwrap().to_str().unwrap().to_owned() + "/mock_emails", "/tmp/preload"))
+        .with_mount(Mount::bind_mount(get_mock_email_dir().into_os_string().into_string().unwrap(), "/tmp/preload"))
         .start().await
         .unwrap();
 
@@ -108,6 +116,74 @@ async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> 
         folders2.len(),
         "Folder count should be consistent"
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_empty_folder() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests2"))
+        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+
+    let emails = inbox.fetch_messages_in_folder(&folder)?;
+
+    assert_eq!(emails.len(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let emails = inbox.fetch_messages_in_folder(&folder)?;
+
+    assert_eq!(emails.len(), 11);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let emails = inbox.fetch_messages_in_folder(&folder)?;
+
+    let mut body_path = get_mock_email_dir();
+    body_path.push("bar/INBOX/tests1/0.eml");
+    let body_data = std::fs::read(body_path)?;
+    let str1 = str::from_utf8(&body_data).unwrap().replace("\r\n", "\n");
+    let str2 = str::from_utf8(
+        emails
+            .iter()
+            .find(|x| x.subject().unwrap().contains("Billing Issues"))
+            .unwrap()
+            .borrow_body(),
+    )
+    .unwrap()
+    .replace("\r\n", "\n");
+
+    assert!(str1 == str2);
 
     Ok(())
 }
