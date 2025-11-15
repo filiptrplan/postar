@@ -10,7 +10,20 @@ fn main() {
 
     let mut inbox = Inbox::new_tls(&domain, port, &user, &pass, false).unwrap();
 
-    println!("{:?}", inbox.list_folders());
+    let folder = inbox
+        .list_folders()
+        .unwrap()
+        .into_iter()
+        .find(|x| x.name.contains("Newletters"))
+        .unwrap();
+    let subjects = inbox
+        .fetch_messages_in_folder(&folder)
+        .unwrap()
+        .into_iter()
+        .map(|x| x.subject())
+        .collect::<Vec<Option<String>>>();
+
+    println!("{:?}", subjects);
 
     // we want to fetch the first email in the INBOX mailbox
     // imap_session.select("INBOX").unwrap();
