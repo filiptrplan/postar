@@ -9,15 +9,12 @@ use std::{
 
 use imap::Session;
 
+#[cfg(test)]
+pub mod tests;
+
 #[derive(Debug)]
 pub struct Folder {
     name: String,
-}
-
-impl Folder {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
 }
 
 #[derive(Debug)]

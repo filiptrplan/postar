@@ -4,13 +4,16 @@ A local email filtering service.
 
 ## TODO
 
-- ability to login to IMAP email inboxes
-- ability to move emails to different folders
-- filter emails by keyword in content or title
-- filter by email
-- a nice config language to enable user configuration
-- hot-reload of config!!
-- notifications for moved emails
+- [x] ability to login to IMAP email inboxes
+- [ ] ability to move emails to different folders
+- [ ] ability to delete emails
+- [ ] detecting new emails
+- [ ] filter emails by keyword in content or title
+- [ ] filter by email
+- [ ] a nice config language to enable user configuration
+- [ ] hot-reload of config!!
+- [ ] notifications for moved emails
+- [ ] persisten storage of state - process new emails upon startup
 
 ## Arch
 

@@ -65,13 +65,13 @@ async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
 
     assert!(!folders.is_empty(), "Expected at least 1 folder, got 0");
 
-    let has_inbox = folders.iter().any(|f| f.name() == "INBOX");
+    let has_inbox = folders.iter().any(|f| f.name == "INBOX");
     assert!(has_inbox, "Expected to find INBOX folder");
 
-    let has_test1 = folders.iter().any(|f| f.name() == "INBOX.tests1");
+    let has_test1 = folders.iter().any(|f| f.name == "INBOX.tests1");
     assert!(has_test1, "Expected to find INBOX.tests1 folder");
 
-    let has_test2 = folders.iter().any(|f| f.name() == "INBOX.tests2");
+    let has_test2 = folders.iter().any(|f| f.name == "INBOX.tests2");
     assert!(has_test2, "Expected to find INBOX.tests2 folder");
 
     Ok(())
@@ -87,7 +87,7 @@ async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
 
     // Verify each folder has a valid name
     for folder in &folders {
-        assert!(!folder.name().is_empty(), "Folder name should not be empty");
+        assert!(!folder.name.is_empty(), "Folder name should not be empty");
     }
 
     Ok(())
