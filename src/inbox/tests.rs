@@ -4,13 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use mail_parser::MessageParser;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, WaitFor},
     runners::AsyncRunner,
 };
 
-use crate::inbox::Inbox;
+use crate::inbox::{Inbox, Message, MessageBuilder};
 
 struct IMAPContainerData {
     host: String,
@@ -184,6 +185,172 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     .replace("\r\n", "\n");
 
     assert!(str1 == str2);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let source_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let dest_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests2"))
+        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
+    let initial_count = messages.len();
+
+    assert!(
+        initial_count > 0,
+        "Source folder should have messages to move"
+    );
+
+    let mut message_to_move = messages.remove(0);
+    let original_uid = message_to_move.uid();
+
+    inbox.move_message_to_folder(&mut message_to_move, &dest_folder)?;
+
+    assert!(
+        *message_to_move.containing_folder() == dest_folder,
+        "Containing folder should change to destination."
+    );
+
+    let source_messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
+    let dest_messages_after = inbox.fetch_messages_in_folder(&dest_folder)?;
+
+    assert_eq!(source_messages_after.len(), initial_count - 1);
+    assert_eq!(dest_messages_after.len(), 1);
+
+    let moved_message = dest_messages_after.iter().find(|m| m.uid() == original_uid);
+    assert!(
+        moved_message.is_some(),
+        "Message should be found in destination folder"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let initial_count = messages.len();
+
+    assert!(initial_count > 0, "Folder should have messages");
+
+    let mut message_to_move = messages.remove(0);
+    let original_uid = message_to_move.uid();
+
+    inbox.move_message_to_folder(&mut message_to_move, &folder)?;
+
+    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+
+    assert_eq!(messages_after.len(), initial_count);
+
+    let message_still_exists = messages_after.iter().any(|m| m.uid() == original_uid);
+    assert!(
+        message_still_exists,
+        "Message should still exist in the same folder"
+    );
+
+    assert!(
+        *message_to_move.containing_folder() == folder,
+        "Containing folder shouldn't change."
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let source_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let non_existing_folder = crate::inbox::Folder {
+        name: "INBOX.NonExistingFolder".to_string(),
+    };
+
+    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
+    assert!(messages.len() > 0, "Source folder should have messages");
+
+    let mut message_to_move = messages.remove(0);
+
+    let result = inbox.move_message_to_folder(&mut message_to_move, &non_existing_folder);
+
+    assert!(result.is_err(), "Moving to non-existing folder should fail");
+
+    let messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
+
+    assert!(
+        messages_after
+            .iter()
+            .any(|x| x.uid() == message_to_move.uid()),
+        "Message should remain in source folder"
+    );
+
+    assert!(
+        *message_to_move.containing_folder() == source_folder,
+        "Containing folder shouldn't change."
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let source_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let dest_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests2"))
+        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+
+    let mut body_path = get_mock_email_dir();
+    body_path.push("bar/INBOX/tests1/0.eml");
+    let body_data = std::fs::read(body_path)?;
+
+    let mut message_to_move = MessageBuilder {
+        containing_folder: source_folder.clone(),
+        uid: 999999999,
+        body: body_data,
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build();
+
+    let result = inbox.move_message_to_folder(&mut message_to_move, &dest_folder);
+
+    assert!(result.is_err(), "Moving invalid message shouldn't succeed");
 
     Ok(())
 }

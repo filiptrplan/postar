@@ -23,6 +23,7 @@ pub struct Folder {
 #[derive(Debug)]
 pub struct Message {
     containing_folder: Folder,
+    uid: u32,
     body: Vec<u8>,
     #[covariant]
     #[borrows(body)]
@@ -87,6 +88,7 @@ impl<T: Read + Write> Inbox<T> {
         Ok(())
     }
 
+    /// Lists all folders of the IMAP session
     pub fn list_folders(&mut self) -> anyhow::Result<Vec<Folder>> {
         let results = self.imap_session.list(None, Some("*"));
         Ok(results?
@@ -97,6 +99,8 @@ impl<T: Read + Write> Inbox<T> {
             .collect())
     }
 
+    /// Fetches *all* messages in a specific folder, along with their bodies. This could be a quite a
+    /// slow operation.
     pub fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
         self.select(folder)?;
 
@@ -115,6 +119,7 @@ impl<T: Read + Write> Inbox<T> {
                 Ok(MessageBuilder {
                     containing_folder: folder.clone(),
                     body,
+                    uid: x.uid.ok_or(anyhow::format_err!("Message has no UID"))?,
                     // This is kinda awkward as we panic on parse error
                     // TODO: fix this
                     message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
@@ -125,6 +130,15 @@ impl<T: Read + Write> Inbox<T> {
 
         self.close()?;
         result
+    }
+
+    /// Moves a message to a destination folder.
+    pub fn move_message_to_folder(
+        &mut self,
+        message: &mut Message,
+        destination_folder: &Folder,
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -137,5 +151,13 @@ impl<T: Read + Write> Drop for Inbox<T> {
 impl Message {
     pub fn subject(&self) -> Option<String> {
         self.borrow_message().subject().map(|x| x.to_owned())
+    }
+
+    pub fn uid(&self) -> u32 {
+        *self.borrow_uid()
+    }
+
+    pub fn containing_folder(&self) -> &Folder {
+        self.borrow_containing_folder()
     }
 }
