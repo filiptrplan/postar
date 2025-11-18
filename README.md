@@ -11,6 +11,7 @@ A local email filtering service.
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] a nice config language to enable user configuration
+- [ ] documentation AND man pages!
 - [ ] hot-reload of config!!
 - [ ] notifications for moved emails
 - [ ] persisten storage of state - process new emails upon startup
