@@ -1,5 +1,6 @@
 use anyhow::Context;
 use chrono::prelude::*;
+use imap_proto::Capability;
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use ouroboros::self_referencing;
@@ -25,9 +26,19 @@ pub struct Message {
     containing_folder: Folder,
     uid: u32,
     body: Vec<u8>,
+    /// Whether the message is still valid. This is set to false upon being deleted
+    valid: bool,
     #[covariant]
     #[borrows(body)]
     message: mail_parser::Message<'this>,
+}
+
+/// Tracks the IMAP state, as there is no built in command for checking that.
+/// The two states are taken from the [RFC](https://datatracker.ietf.org/doc/html/rfc3501#section-3)
+#[derive(Debug, PartialEq, Eq)]
+enum InboxState {
+    Authenticated,
+    Selected,
 }
 
 #[derive(Debug)]
@@ -41,6 +52,22 @@ pub struct Inbox<T: Read + Write> {
     imap_session: Session<T>,
     /// The date of the last fetch. Used to periodically fetch new messages.
     last_fetch_date: DateTime<Local>,
+    /// The capabilities of the IMAP server. Used for checking whether we can perform various
+    /// opetaions
+    capabilities: InboxCapabilities,
+    state: InboxState,
+}
+
+/// The capabilities of the IMAP server. Used for checking whether we can perform various
+/// operations.
+///
+/// We don't use [imap::Capabilties] because it is wrapped in a [imap::ZeroCopy] and refers to the
+/// underlying data. We construct this struct when instantiating the [Inbox] struct and we check
+/// the capabilities one by one in order to make them owned values.
+#[derive(Debug)]
+struct InboxCapabilities {
+    /// `MOVE` capability for the `UID MOVE` command. Defined in [RFC 6851](https://datatracker.ietf.org/doc/html/rfc6851)
+    has_move: bool,
 }
 
 impl Inbox<TlsStream<TcpStream>> {
@@ -63,14 +90,22 @@ impl Inbox<TlsStream<TcpStream>> {
 
         // the client we have here is unauthenticated.
         // to do anything useful with the e-mails, we need to log in
-        let imap_session = client
+        let mut imap_session = client
             .login(user, pass)
             .map_err(|e| e.0)
             .with_context(|| "Failed to login to IMAP")?;
 
+        let capabilities = imap_session
+            .capabilities()
+            .with_context(|| "Failed to fetch capabilities.")?;
+
         Ok(Inbox {
             imap_session,
             last_fetch_date: DateTime::from_timestamp_nanos(0).into(),
+            capabilities: InboxCapabilities {
+                has_move: capabilities.has_str("MOVE"),
+            },
+            state: InboxState::Authenticated,
         })
     }
 }
@@ -80,11 +115,13 @@ impl<T: Read + Write> Inbox<T> {
         self.imap_session
             .select(&folder.name)
             .with_context(|| format!("Failed to select folder {}", folder.name))?;
+        self.state = InboxState::Selected;
         Ok(())
     }
 
     fn close(&mut self) -> anyhow::Result<()> {
         self.imap_session.close()?;
+        self.state = InboxState::Authenticated;
         Ok(())
     }
 
@@ -123,6 +160,7 @@ impl<T: Read + Write> Inbox<T> {
                     // This is kinda awkward as we panic on parse error
                     // TODO: fix this
                     message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+                    valid: true,
                 }
                 .build())
             })
@@ -138,6 +176,27 @@ impl<T: Read + Write> Inbox<T> {
         message: &mut Message,
         destination_folder: &Folder,
     ) -> anyhow::Result<()> {
+        let containing_folder = message
+            .containing_folder()
+            .ok_or(anyhow::format_err!("Message is invalid"))?;
+        let uid_set = message
+            .uid_set()
+            .ok_or(anyhow::format_err!("Message is invalid"))?;
+        self.select(containing_folder)?;
+        // We use the UID MOVE command if it is possible because it is an atomic operation.
+        if self.capabilities.has_move {
+            self.imap_session
+                .uid_mv(&uid_set, &destination_folder.name)?;
+        } else {
+            self.imap_session
+                .uid_store(&uid_set, "+FLAGS.SILENT \\Deleted")?;
+            self.imap_session
+                .uid_copy(&uid_set, &destination_folder.name)?;
+            self.imap_session.uid_expunge(&uid_set)?;
+        }
+
+        self.close()?;
+        message.set_invalid();
         Ok(())
     }
 }
@@ -153,11 +212,40 @@ impl Message {
         self.borrow_message().subject().map(|x| x.to_owned())
     }
 
-    pub fn uid(&self) -> u32 {
-        *self.borrow_uid()
+    pub fn is_valid(&self) -> bool {
+        *self.borrow_valid()
     }
 
-    pub fn containing_folder(&self) -> &Folder {
-        self.borrow_containing_folder()
+    pub fn uid(&self) -> Option<u32> {
+        if !self.is_valid() {
+            None
+        } else {
+            Some(*self.borrow_uid())
+        }
+    }
+
+    /// Returns a sequence set containing only this UID
+    pub fn uid_set(&self) -> Option<String> {
+        if !self.is_valid() {
+            None
+        } else {
+            Some(self.uid()?.to_string())
+        }
+    }
+
+    pub fn containing_folder(&self) -> Option<&Folder> {
+        if !self.is_valid() {
+            None
+        } else {
+            Some(self.borrow_containing_folder())
+        }
+    }
+
+    fn set_containing_folder(&mut self, folder: Folder) {
+        self.with_containing_folder_mut(|mut_folder| *mut_folder = folder);
+    }
+
+    fn set_invalid(&mut self) {
+        self.with_valid_mut(|valid| *valid = false);
     }
 }

@@ -4,14 +4,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use mail_parser::MessageParser;
+use mail_parser::{MessageParser, core::message};
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, WaitFor},
     runners::AsyncRunner,
 };
+use tokio::io::AsyncBufReadExt;
 
-use crate::inbox::{Inbox, Message, MessageBuilder};
+use crate::inbox::{Inbox, InboxState, Message, MessageBuilder};
 
 struct IMAPContainerData {
     host: String,
@@ -21,6 +22,17 @@ struct IMAPContainerData {
 
 fn get_mock_email_dir() -> PathBuf {
     PathBuf::from(current_dir().unwrap().to_str().unwrap().to_owned() + "/mock_emails")
+}
+
+#[allow(dead_code)]
+async fn print_container_logs(container: &ContainerAsync<GenericImage>) {
+    let logs = container.stdout(false); // false = read from startup to present
+
+    let mut lines = logs.lines();
+
+    while let Ok(Some(line)) = lines.next_line().await {
+        println!("{}", line);
+    }
 }
 
 async fn get_container() -> IMAPContainerData {
@@ -215,13 +227,13 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     );
 
     let mut message_to_move = messages.remove(0);
-    let original_uid = message_to_move.uid();
+    let original_body = message_to_move.borrow_body().to_vec();
 
     inbox.move_message_to_folder(&mut message_to_move, &dest_folder)?;
 
     assert!(
-        *message_to_move.containing_folder() == dest_folder,
-        "Containing folder should change to destination."
+        !message_to_move.is_valid(),
+        "Message should be invalid after move"
     );
 
     let source_messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
@@ -230,10 +242,15 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     assert_eq!(source_messages_after.len(), initial_count - 1);
     assert_eq!(dest_messages_after.len(), 1);
 
-    let moved_message = dest_messages_after.iter().find(|m| m.uid() == original_uid);
-    assert!(
-        moved_message.is_some(),
-        "Message should be found in destination folder"
+    let moved_message = dest_messages_after
+        .iter()
+        .find(|m| m.borrow_body() == original_body.as_slice())
+        .expect("Message should be found in destination folder by body content");
+
+    assert_eq!(
+        moved_message.borrow_body(),
+        original_body.as_slice(),
+        "Persisted body should match the original"
     );
 
     Ok(())
@@ -256,24 +273,30 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
     assert!(initial_count > 0, "Folder should have messages");
 
     let mut message_to_move = messages.remove(0);
-    let original_uid = message_to_move.uid();
+    let original_body = message_to_move.borrow_body().to_vec();
 
     inbox.move_message_to_folder(&mut message_to_move, &folder)?;
 
+    assert!(
+        !message_to_move.is_valid(),
+        "Message should be invalid after move"
+    );
+
     let messages_after = inbox.fetch_messages_in_folder(&folder)?;
 
+    let moved_message = messages_after
+        .iter()
+        .find(|m| m.borrow_body() == original_body.as_slice())
+        .expect("Message should be found in destination folder by body content");
+
+    assert_eq!(
+        moved_message.borrow_body(),
+        original_body.as_slice(),
+        "Persisted body should match the original"
+    );
+
+    // The count should remain the same since we're moving within the same folder
     assert_eq!(messages_after.len(), initial_count);
-
-    let message_still_exists = messages_after.iter().any(|m| m.uid() == original_uid);
-    assert!(
-        message_still_exists,
-        "Message should still exist in the same folder"
-    );
-
-    assert!(
-        *message_to_move.containing_folder() == folder,
-        "Containing folder shouldn't change."
-    );
 
     Ok(())
 }
@@ -300,7 +323,10 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
 
     let result = inbox.move_message_to_folder(&mut message_to_move, &non_existing_folder);
 
-    assert!(result.is_err(), "Moving to non-existing folder should fail");
+    assert!(
+        result.is_err(),
+        "Moving to non-existing folder should fail."
+    );
 
     let messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
 
@@ -312,7 +338,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
     );
 
     assert!(
-        *message_to_move.containing_folder() == source_folder,
+        *message_to_move.containing_folder().unwrap() == source_folder,
         "Containing folder shouldn't change."
     );
 
@@ -342,6 +368,7 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 
     let mut message_to_move = MessageBuilder {
         containing_folder: source_folder.clone(),
+        valid: true,
         uid: 999999999,
         body: body_data,
         message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
@@ -350,7 +377,45 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 
     let result = inbox.move_message_to_folder(&mut message_to_move, &dest_folder);
 
-    assert!(result.is_err(), "Moving invalid message shouldn't succeed");
+    assert!(
+        result.is_ok(),
+        "Moving invalid message shouldn't fail. It is just a no-op."
+    );
+
+    assert!(
+        !message_to_move.is_valid(),
+        "Message should be invalid after move"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let source_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let dest_folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests2"))
+        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
+    let mut message_to_move = messages.remove(0);
+    inbox.move_message_to_folder(&mut message_to_move, &dest_folder)?;
+
+    assert_eq!(
+        inbox.state,
+        InboxState::Authenticated,
+        "The inbox should be in an authenticated state after the end of the command."
+    );
 
     Ok(())
 }
