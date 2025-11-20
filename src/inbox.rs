@@ -169,6 +169,9 @@ impl<T: Read + Write> Inbox<T> {
     }
 
     /// Moves a message to a destination folder.
+    ///
+    /// Moving an invalid message or to an invalid folder will still return `Ok` but it will be a
+    /// no-op on the IMAP server.
     pub fn move_message_to_folder(
         &mut self,
         message: &mut Message,
