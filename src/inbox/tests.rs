@@ -1,10 +1,6 @@
-use std::{
-    env::current_dir,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{env::current_dir, path::PathBuf};
 
-use mail_parser::{MessageParser, core::message};
+use mail_parser::MessageParser;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, WaitFor},
@@ -12,11 +8,12 @@ use testcontainers::{
 };
 use tokio::io::AsyncBufReadExt;
 
-use crate::inbox::{Inbox, InboxState, Message, MessageBuilder};
+use crate::inbox::{Inbox, InboxState, MessageBuilder};
 
 struct IMAPContainerData {
     host: String,
     port: u16,
+    #[allow(unused)]
     container: ContainerAsync<GenericImage>,
 }
 

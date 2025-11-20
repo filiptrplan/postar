@@ -1,11 +1,9 @@
 use anyhow::Context;
 use chrono::prelude::*;
-use imap_proto::Capability;
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use ouroboros::self_referencing;
 use std::{
-    borrow::Cow,
     io::{Read, Write},
     net::TcpStream,
 };
@@ -239,10 +237,6 @@ impl Message {
         } else {
             Some(self.borrow_containing_folder())
         }
-    }
-
-    fn set_containing_folder(&mut self, folder: Folder) {
-        self.with_containing_folder_mut(|mut_folder| *mut_folder = folder);
     }
 
     fn set_invalid(&mut self) {
