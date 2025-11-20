@@ -200,6 +200,26 @@ impl<T: Read + Write> Inbox<T> {
         message.set_invalid();
         Ok(())
     }
+
+    pub fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()> {
+        let containing_folder = message
+            .containing_folder()
+            .ok_or(anyhow::format_err!("Message is invalid"))?;
+        let uid_set = message
+            .uid_set()
+            .ok_or(anyhow::format_err!("Message is invalid"))?;
+
+        self.select(containing_folder)?;
+
+        self.imap_session
+            .uid_store(&uid_set, "+FLAGS (\\Deleted)")?;
+
+        self.imap_session.uid_expunge(&uid_set)?;
+
+        self.close()?;
+        message.set_invalid();
+        Ok(())
+    }
 }
 
 impl<T: Read + Write> Drop for Inbox<T> {

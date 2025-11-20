@@ -416,3 +416,186 @@ async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_delete_valid_message() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let initial_count = messages.len();
+
+    assert!(initial_count > 0, "Folder should have messages to delete");
+
+    let mut message_to_delete = messages.remove(0);
+    let original_uid = message_to_delete.uid().expect("Message should have UID");
+
+    inbox.delete_message(&mut message_to_delete)?;
+
+    assert!(
+        !message_to_delete.is_valid(),
+        "Message should be invalid after deletion"
+    );
+
+    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+    assert_eq!(
+        messages_after.len(),
+        initial_count - 1,
+        "Message count should decrease by 1 after deletion"
+    );
+
+    assert!(
+        messages_after.iter().all(|m| m.uid() != Some(original_uid)),
+        "Deleted message should not be found in folder"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_invalid_message() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let body_path = get_mock_email_dir().join("bar/INBOX/tests1/0.eml");
+    let body_data = std::fs::read(body_path)?;
+
+    let mut invalid_message = MessageBuilder {
+        containing_folder: folder.clone(),
+        valid: true,
+        uid: 999999999, // Non-existent UID
+        body: body_data,
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build();
+
+    let result = inbox.delete_message(&mut invalid_message);
+
+    assert!(
+        result.is_ok(),
+        "Deleting invalid message should not fail, it should be a no-op"
+    );
+
+    assert!(
+        !invalid_message.is_valid(),
+        "Message should be invalid after deletion attempt"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let body_path = get_mock_email_dir().join("bar/INBOX/tests1/0.eml");
+    let body_data = std::fs::read(body_path)?;
+
+    let mut invalid_message = MessageBuilder {
+        containing_folder: folder.clone(),
+        valid: false, // Already invalid
+        uid: 1,
+        body: body_data,
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build();
+
+    let result = inbox.delete_message(&mut invalid_message);
+
+    assert!(
+        result.is_err(),
+        "Deleting already invalid message should fail"
+    );
+
+    assert!(!invalid_message.is_valid(), "Message should remain invalid");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let mut message_to_delete = messages.remove(0);
+
+    inbox.delete_message(&mut message_to_delete)?;
+
+    assert_eq!(
+        inbox.state,
+        InboxState::Authenticated,
+        "The inbox should be in an authenticated state after delete_message"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_multiple_messages() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let initial_count = messages.len();
+
+    assert!(initial_count >= 2, "Folder should have at least 2 messages");
+
+    let mut message1 = messages.remove(0);
+    let mut message2 = messages.remove(0);
+    let uid1 = message1.uid().expect("Message should have UID");
+    let uid2 = message2.uid().expect("Message should have UID");
+
+    inbox.delete_message(&mut message1)?;
+    inbox.delete_message(&mut message2)?;
+
+    assert!(!message1.is_valid(), "First message should be invalid");
+    assert!(!message2.is_valid(), "Second message should be invalid");
+
+    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+    assert_eq!(
+        messages_after.len(),
+        initial_count - 2,
+        "Message count should decrease by 2 after deletion"
+    );
+
+    assert!(
+        messages_after
+            .iter()
+            .all(|m| m.uid() != Some(uid1) && m.uid() != Some(uid2)),
+        "Both deleted messages should not be found in folder"
+    );
+
+    Ok(())
+}
