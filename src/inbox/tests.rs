@@ -1,6 +1,8 @@
-use std::{env::current_dir, path::PathBuf};
+use std::{env::current_dir, net::TcpStream, path::PathBuf};
 
 use mail_parser::MessageParser;
+use mail_send::SmtpClientBuilder;
+use native_tls::TlsStream;
 use testcontainers::{
     ContainerAsync, GenericImage, ImageExt,
     core::{IntoContainerPort, Mount, WaitFor},
@@ -22,22 +24,41 @@ fn get_mock_email_dir() -> PathBuf {
     PathBuf::from(current_dir().unwrap().to_str().unwrap().to_owned() + "/mock_emails")
 }
 
-#[allow(dead_code)]
-async fn print_container_logs(container: &ContainerAsync<GenericImage>) {
-    let logs = container.stdout(false); // false = read from startup to present
+impl IMAPContainerData {
+    #[allow(dead_code)]
+    async fn print_container_logs(&self) {
+        let logs = self.container.stdout(false); // false = read from startup to present
 
-    let mut lines = logs.lines();
+        let mut lines = logs.lines();
 
-    while let Ok(Some(line)) = lines.next_line().await {
-        println!("{}", line);
+        while let Ok(Some(line)) = lines.next_line().await {
+            println!("{}", line);
+        }
+    }
+
+    async fn send_email(
+        &self,
+        message: mail_send::mail_builder::MessageBuilder<'_>,
+    ) -> anyhow::Result<()> {
+        SmtpClientBuilder::new(self.host.as_str(), self.smtp_port)
+            .implicit_tls(true)
+            .allow_invalid_certs()
+            .credentials(("foo", "a"))
+            .connect()
+            .await?
+            .send(message)
+            .await?;
+        Ok(())
+    }
+
+    fn create_inbox(&self) -> anyhow::Result<Inbox<TlsStream<TcpStream>>> {
+        Inbox::new_tls(&self.host, self.imap_port, "bar@example.com", "a", true)
     }
 }
 
-async fn send_email(container_data: &IMAPContainerData) {}
-
 async fn get_container() -> IMAPContainerData {
     let port = 3993;
-    let smtp_port = 3025;
+    let smtp_port = 3465;
     let container = GenericImage::new("greenmail/standalone", "2.1.7")
         .with_exposed_port(port.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Starting GreenMail"))
@@ -56,6 +77,49 @@ async fn get_container() -> IMAPContainerData {
         smtp_port: container.get_host_port_ipv4(smtp_port).await.unwrap(),
         container,
     }
+}
+
+#[tokio::test]
+async fn test_send_email() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name == "INBOX")
+        .clone()
+        .unwrap();
+
+    let initial_emails = inbox.fetch_messages_in_folder(&folder)?;
+
+    container_data
+        .send_email(
+            mail_send::mail_builder::MessageBuilder::new()
+                .from(("foo", "foo@example.com"))
+                .to(("bar", "bar@example.com"))
+                .subject("This is a test.")
+                .text_body("This is the text body."),
+        )
+        .await?;
+
+    let after_emails = inbox.fetch_messages_in_folder(&folder)?;
+
+    container_data.print_container_logs().await;
+
+    assert_eq!(
+        initial_emails.len() + 1,
+        after_emails.len(),
+        "This after messages should be 1 more than the initial ones."
+    );
+
+    assert!(
+        after_emails
+            .iter()
+            .any(|x| x.subject().unwrap_or("".to_string()) == "This is a test."),
+        "The new email should exist."
+    );
+
+    Ok(())
 }
 
 #[tokio::test]
@@ -88,13 +152,7 @@ async fn test_new_tls_invalid_host() {
 #[tokio::test]
 async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folders = inbox.list_folders()?;
 
@@ -115,13 +173,7 @@ async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     // List all folders
     let folders = inbox.list_folders()?;
@@ -137,13 +189,7 @@ async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     // List folders twice to ensure the session remains valid
     let folders1 = inbox.list_folders()?;
@@ -162,13 +208,7 @@ async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> 
 #[tokio::test]
 async fn test_fetch_empty_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -186,13 +226,7 @@ async fn test_fetch_empty_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -210,13 +244,7 @@ async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -227,7 +255,7 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     let emails = inbox.fetch_messages_in_folder(&folder)?;
 
     let mut body_path = get_mock_email_dir();
-    body_path.push("bar/INBOX/tests1/0.eml");
+    body_path.push("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
     let str1 = str::from_utf8(&body_data).unwrap().replace("\r\n", "\n");
     let str2 = str::from_utf8(
@@ -248,13 +276,7 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let source_folder = inbox
         .list_folders()?
@@ -309,13 +331,7 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -360,13 +376,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let source_folder = inbox
         .list_folders()?
@@ -410,13 +420,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let source_folder = inbox
         .list_folders()?
@@ -431,7 +435,7 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
         .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
 
     let mut body_path = get_mock_email_dir();
-    body_path.push("bar/INBOX/tests1/0.eml");
+    body_path.push("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
 
     let mut message_to_move = MessageBuilder {
@@ -461,13 +465,7 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let source_folder = inbox
         .list_folders()?
@@ -497,13 +495,7 @@ async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_valid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -544,13 +536,7 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -558,7 +544,7 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
         .find(|x| x.name.contains("tests1"))
         .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
 
-    let body_path = get_mock_email_dir().join("bar/INBOX/tests1/0.eml");
+    let body_path = get_mock_email_dir().join("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
 
     let mut invalid_message = MessageBuilder {
@@ -588,13 +574,7 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -602,7 +582,7 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
         .find(|x| x.name.contains("tests1"))
         .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
 
-    let body_path = get_mock_email_dir().join("bar/INBOX/tests1/0.eml");
+    let body_path = get_mock_email_dir().join("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
 
     let mut invalid_message = MessageBuilder {
@@ -629,13 +609,7 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
@@ -660,13 +634,7 @@ async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<(
 #[tokio::test]
 async fn test_delete_multiple_messages() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(
-        &container_data.host,
-        container_data.imap_port,
-        "bar",
-        "a",
-        true,
-    )?;
+    let mut inbox = container_data.create_inbox()?;
 
     let folder = inbox
         .list_folders()?
