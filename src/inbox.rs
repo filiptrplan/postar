@@ -1,3 +1,7 @@
+/// This module contains functionality for interacting with an email inbox. Things like folders,
+/// messages and functions to manipulate them.
+///
+/// Currently, it only supports the IMAP protocol.
 use anyhow::Context;
 use chrono::prelude::*;
 use mail_parser::MessageParser;
@@ -18,7 +22,7 @@ pub struct Folder {
     pub name: String,
 }
 
-#[self_referencing]
+#[self_referencing(pub_extras)]
 #[derive(Debug)]
 pub struct Message {
     containing_folder: Folder,
