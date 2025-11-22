@@ -201,6 +201,7 @@ impl<T: Read + Write> Inbox<T> {
         Ok(())
     }
 
+    /// Deletes a message from the containing folder (that is stored in the [Message] struct).
     pub fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()> {
         let containing_folder = message
             .containing_folder()
