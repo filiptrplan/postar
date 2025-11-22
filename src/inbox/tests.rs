@@ -12,7 +12,8 @@ use crate::inbox::{Inbox, InboxState, MessageBuilder};
 
 struct IMAPContainerData {
     host: String,
-    port: u16,
+    imap_port: u16,
+    smtp_port: u16,
     #[allow(unused)]
     container: ContainerAsync<GenericImage>,
 }
@@ -32,8 +33,11 @@ async fn print_container_logs(container: &ContainerAsync<GenericImage>) {
     }
 }
 
+async fn send_email(container_data: &IMAPContainerData) {}
+
 async fn get_container() -> IMAPContainerData {
     let port = 3993;
+    let smtp_port = 3025;
     let container = GenericImage::new("greenmail/standalone", "2.1.7")
         .with_exposed_port(port.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Starting GreenMail"))
@@ -48,7 +52,8 @@ async fn get_container() -> IMAPContainerData {
 
     IMAPContainerData {
         host: container.get_host().await.unwrap().to_string(),
-        port: container.get_host_port_ipv4(port).await.unwrap(),
+        imap_port: container.get_host_port_ipv4(port).await.unwrap(),
+        smtp_port: container.get_host_port_ipv4(smtp_port).await.unwrap(),
         container,
     }
 }
@@ -58,7 +63,13 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
     let container_data = get_container().await;
 
     // Test that new_tls successfully creates an Inbox with valid credentials
-    let _ = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let _ = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     Ok(())
 }
@@ -77,7 +88,13 @@ async fn test_new_tls_invalid_host() {
 #[tokio::test]
 async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folders = inbox.list_folders()?;
 
@@ -98,7 +115,13 @@ async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     // List all folders
     let folders = inbox.list_folders()?;
@@ -114,7 +137,13 @@ async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     // List folders twice to ensure the session remains valid
     let folders1 = inbox.list_folders()?;
@@ -133,7 +162,13 @@ async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> 
 #[tokio::test]
 async fn test_fetch_empty_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -151,7 +186,13 @@ async fn test_fetch_empty_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -169,7 +210,13 @@ async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -201,7 +248,13 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let source_folder = inbox
         .list_folders()?
@@ -256,7 +309,13 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -301,7 +360,13 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let source_folder = inbox
         .list_folders()?
@@ -345,7 +410,13 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let source_folder = inbox
         .list_folders()?
@@ -390,7 +461,13 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let source_folder = inbox
         .list_folders()?
@@ -420,7 +497,13 @@ async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_valid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -461,7 +544,13 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -499,7 +588,13 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -534,7 +629,13 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?
@@ -559,7 +660,13 @@ async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<(
 #[tokio::test]
 async fn test_delete_multiple_messages() -> anyhow::Result<()> {
     let container_data = get_container().await;
-    let mut inbox = Inbox::new_tls(&container_data.host, container_data.port, "bar", "a", true)?;
+    let mut inbox = Inbox::new_tls(
+        &container_data.host,
+        container_data.imap_port,
+        "bar",
+        "a",
+        true,
+    )?;
 
     let folder = inbox
         .list_folders()?

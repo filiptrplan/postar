@@ -6,7 +6,7 @@ A local email filtering service.
 
 - [x] ability to login to IMAP email inboxes
 - [x] ability to move emails to different folders
-- [ ] ability to delete emails
+- [x] ability to delete emails
 - [ ] detecting new emails
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
