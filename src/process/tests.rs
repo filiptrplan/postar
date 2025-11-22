@@ -168,3 +168,226 @@ fn test_matcher_subject_equals() {
     assert!(!matcher.matches(&message5));
 }
 
+#[test]
+fn test_matcher_subject_regex() {
+    let matcher = Matcher::Subject(StringMatcher::Regex(regex::Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap()));
+
+    let message1 = create_fake_message("Meeting on 2023-12-25");
+    assert!(matcher.matches(&message1));
+
+    let message2 = create_fake_message("2023-12-25 is the date");
+    assert!(matcher.matches(&message2));
+
+    let message3 = create_fake_message("No date here");
+    assert!(!matcher.matches(&message3));
+}
+
+#[test]
+fn test_matcher_from_contains() {
+    let matcher = Matcher::From(StringMatcher::Contains("sender".to_string()));
+
+    let message1 = create_fake_message("Test Subject");
+    assert!(matcher.matches(&message1));
+
+    let message2 = create_message_with_from("Test Subject", "different@example.com");
+    assert!(!matcher.matches(&message2));
+}
+
+#[test]
+fn test_matcher_to_contains() {
+    let matcher = Matcher::To(StringMatcher::Contains("recipient".to_string()));
+
+    let message1 = create_fake_message("Test Subject");
+    assert!(matcher.matches(&message1));
+
+    let message2 = create_message_with_to("Test Subject", "different@example.com");
+    assert!(!matcher.matches(&message2));
+}
+
+#[test]
+fn test_matcher_body_contains() {
+    let matcher = Matcher::Body(StringMatcher::Contains("body".to_string()));
+
+    let message1 = create_fake_message("Test Subject");
+    assert!(matcher.matches(&message1));
+
+    let message2 = create_message_with_body("Test Subject", "This is the content of the email.");
+    assert!(!matcher.matches(&message2));
+}
+
+#[test]
+fn test_matcher_and_both_true() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
+    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(and_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_and_first_false() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
+    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(!and_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_and_second_false() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
+    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(!and_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_or_first_true() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
+    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(or_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_or_second_true() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
+    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(or_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_or_both_false() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
+    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(!or_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_not_true_becomes_false() {
+    let inner_matcher = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let not_matcher = Matcher::Not(Box::new(inner_matcher));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(!not_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_not_false_becomes_true() {
+    let inner_matcher = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
+    let not_matcher = Matcher::Not(Box::new(inner_matcher));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(not_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_nested_and_or() {
+    let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
+    let matcher3 = Matcher::To(StringMatcher::Contains("recipient".to_string()));
+    
+    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+    let nested_matcher = Matcher::Or(Box::new(and_matcher), Box::new(matcher3));
+
+    let message = create_fake_message("URGENT: Action Required");
+    assert!(nested_matcher.matches(&message));
+}
+
+#[test]
+fn test_matcher_complex_nested_structure() {
+    let urgent_matcher = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
+    let billing_matcher = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
+    let sender_matcher = Matcher::From(StringMatcher::Contains("sender".to_string()));
+    
+    let not_billing = Matcher::Not(Box::new(billing_matcher));
+    let and_matcher = Matcher::And(Box::new(urgent_matcher), Box::new(not_billing));
+    let final_matcher = Matcher::Or(Box::new(and_matcher), Box::new(sender_matcher));
+
+    let message1 = create_fake_message("URGENT: Action Required");
+    assert!(final_matcher.matches(&message1));
+
+    let message2 = create_fake_message("Billing Issues");
+    assert!(final_matcher.matches(&message2));
+
+    let message3 = create_fake_message("Regular Newsletter");
+    assert!(!final_matcher.matches(&message3));
+}
+
+fn create_message_with_from(subject: &str, from: &str) -> Message {
+    let email_body = format!(
+        "From: {}\r\n\
+        To: recipient@example.com\r\n\
+        Subject: {}\r\n\
+        \r\n\
+        This is the body of the email.",
+        from, subject
+    );
+
+    MessageBuilder {
+        containing_folder: Folder {
+            name: "INBOX".to_string(),
+        },
+        valid: true,
+        uid: 1,
+        body: email_body.into_bytes(),
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build()
+}
+
+fn create_message_with_to(subject: &str, to: &str) -> Message {
+    let email_body = format!(
+        "From: sender@example.com\r\n\
+        To: {}\r\n\
+        Subject: {}\r\n\
+        \r\n\
+        This is the body of the email.",
+        to, subject
+    );
+
+    MessageBuilder {
+        containing_folder: Folder {
+            name: "INBOX".to_string(),
+        },
+        valid: true,
+        uid: 1,
+        body: email_body.into_bytes(),
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build()
+}
+
+fn create_message_with_body(subject: &str, body: &str) -> Message {
+    let email_body = format!(
+        "From: sender@example.com\r\n\
+        To: recipient@example.com\r\n\
+        Subject: {}\r\n\
+        \r\n\
+        {}",
+        subject, body
+    );
+
+    MessageBuilder {
+        containing_folder: Folder {
+            name: "INBOX".to_string(),
+        },
+        valid: true,
+        uid: 1,
+        body: email_body.into_bytes(),
+        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+    }
+    .build()
+}
