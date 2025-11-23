@@ -12,6 +12,9 @@ use testcontainers::{
 };
 use tokio::io::AsyncBufReadExt;
 
+#[cfg(test)]
+pub mod mock_tests;
+
 pub struct IMAPContainerData {
     pub host: String,
     pub imap_port: u16,
