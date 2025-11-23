@@ -234,8 +234,65 @@ impl<T: Read + Write> Drop for Inbox<T> {
 }
 
 impl Message {
+    /// Subject field
     pub fn subject(&self) -> Option<String> {
         self.borrow_message().subject().map(|x| x.to_owned())
+    }
+
+    /// From field. All the separate addresses are concatenated in the following format: `name1
+    /// <addr1>, name2 <addr2>, ...`.
+    pub fn from(&self) -> Option<String> {
+        self.borrow_message().from().map(|from| {
+            from.iter()
+                .fold(String::from(""), |acc, x| {
+                    format!(
+                        "{}, {} <{}>",
+                        acc,
+                        x.name().unwrap_or(""),
+                        x.address().unwrap_or("")
+                    )
+                })
+                .to_string()
+        })
+    }
+
+    /// To field. All the separate addresses are concatenated in the following format: `name1
+    /// <addr1>, name2 <addr2>, ...`.
+    pub fn to(&self) -> Option<String> {
+        self.borrow_message().from().map(|from| {
+            from.iter()
+                .fold(String::from(""), |acc, x| {
+                    format!(
+                        "{}, {} <{}>",
+                        acc,
+                        x.name().unwrap_or(""),
+                        x.address().unwrap_or("")
+                    )
+                })
+                .to_string()
+        })
+    }
+
+    pub fn body(&self) -> String {
+        let html_bodies = self
+            .borrow_message()
+            .html_bodies()
+            .map(|x| match x.body.clone() {
+                mail_parser::PartType::Text(txt) => txt,
+                mail_parser::PartType::Html(txt) => txt,
+                _ => std::borrow::Cow::Borrowed(""),
+            })
+            .fold("".to_string(), |acc, x| acc + &x);
+        let text_bodies = self
+            .borrow_message()
+            .text_bodies()
+            .map(|x| match x.body.clone() {
+                mail_parser::PartType::Text(txt) => txt,
+                mail_parser::PartType::Html(txt) => txt,
+                _ => std::borrow::Cow::Borrowed(""),
+            })
+            .fold("".to_string(), |acc, x| acc + &x);
+        html_bodies + &text_bodies
     }
 
     pub fn is_valid(&self) -> bool {
