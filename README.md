@@ -2,6 +2,11 @@
 
 A local email filtering service.
 
+<!-- prettier-ignore -->
+> [!NOTE]
+> **AI Disclosure**: AI coding tools have been involved in the making of this
+> project, but **only** in writing tests. All other bussiness logic is 100% human-made.
+
 ## TODO
 
 - [x] ability to login to IMAP email inboxes
