@@ -1,7 +1,7 @@
 use log::info;
 use mail_parser::MessageParser;
 
-use crate::inbox::{IMAPInbox, Inbox, InboxState, MessageBuilder};
+use crate::inbox::{Inbox, MessageBuilder, imap_inbox::IMAPInbox, imap_inbox::InboxState};
 use crate::test_helpers::{
     find_folder_contains, find_folder_equals, get_container, get_mock_email_dir,
 };

@@ -3,4 +3,4 @@ pub mod process;
 #[cfg(test)]
 pub mod test_helpers;
 
-pub use inbox::{Inbox, IMAPInbox};
+pub use inbox::{IMAPInbox, Inbox};

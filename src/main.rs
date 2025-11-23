@@ -1,6 +1,6 @@
 use std::env;
 
-use postar::{inbox::IMAPInbox, Inbox};
+use postar::{IMAPInbox, Inbox};
 
 fn main() {
     let domain = env::var("DOMAIN").unwrap();
