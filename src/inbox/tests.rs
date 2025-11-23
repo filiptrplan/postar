@@ -1,7 +1,7 @@
 use log::info;
 use mail_parser::MessageParser;
 
-use crate::inbox::{Inbox, InboxState, MessageBuilder};
+use crate::inbox::{IMAPInbox, Inbox, InboxState, MessageBuilder};
 use crate::test_helpers::{
     find_folder_contains, find_folder_equals, get_container, get_mock_email_dir,
 };
@@ -49,7 +49,7 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
     let container_data = get_container().await;
 
     // Test that new_tls successfully creates an Inbox with valid credentials
-    let _ = Inbox::new_tls(
+    let _ = IMAPInbox::new_tls(
         &container_data.host,
         container_data.imap_port,
         "bar",
@@ -64,7 +64,7 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
 #[test_log::test]
 async fn test_new_tls_invalid_host() {
     // Test that new_tls fails with invalid host
-    let result = Inbox::new_tls("invalid.host.example.com", 993, "user", "pass", true);
+    let result = IMAPInbox::new_tls("invalid.host.example.com", 993, "user", "pass", true);
 
     // Should fail with connection error
     assert!(result.is_err());

@@ -1,6 +1,6 @@
 use std::env;
 
-use postar::inbox::Inbox;
+use postar::{inbox::IMAPInbox, Inbox};
 
 fn main() {
     let domain = env::var("DOMAIN").unwrap();
@@ -8,7 +8,7 @@ fn main() {
     let pass = env::var("PASS").unwrap();
     let port = env::var("PORT").unwrap().parse::<u16>().unwrap();
 
-    let mut inbox = Inbox::new_tls(&domain, port, &user, &pass, false).unwrap();
+    let mut inbox = IMAPInbox::new_tls(&domain, port, &user, &pass, false).unwrap();
 
     let folder = inbox
         .list_folders()

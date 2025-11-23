@@ -98,9 +98,9 @@ impl StringMatcher {
 }
 
 impl Action {
-    fn execute<T: Read + Write>(
+    fn execute<T: Read + Write, I: Inbox>(
         &self,
-        inbox: &mut Inbox<T>,
+        inbox: &mut I,
         message: &mut Message,
     ) -> anyhow::Result<()> {
         match self {

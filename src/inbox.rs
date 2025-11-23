@@ -16,6 +16,29 @@ use imap::Session;
 #[cfg(test)]
 pub mod tests;
 
+/// Trait defining common inbox operations that can be implemented by different email protocols
+pub trait Inbox {
+    /// Lists all folders of the inbox session
+    fn list_folders(&mut self) -> anyhow::Result<Vec<Folder>>;
+
+    /// Fetches *all* messages in a specific folder, along with their bodies. This could be a quite a
+    /// slow operation.
+    fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>>;
+
+    /// Moves a message to a destination folder.
+    ///
+    /// Moving an invalid message or to an invalid folder will still return `Ok` but it will be a
+    /// no-op on the server.
+    fn move_message_to_folder(
+        &mut self,
+        message: &mut Message,
+        destination_folder: &Folder,
+    ) -> anyhow::Result<()>;
+
+    /// Deletes a message from the containing folder (that is stored in the [Message] struct).
+    fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()>;
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Folder {
     pub name: String,
@@ -43,7 +66,7 @@ enum InboxState {
 }
 
 #[derive(Debug)]
-pub struct Inbox<T: Read + Write> {
+pub struct IMAPInbox<T: Read + Write> {
     /// The IMAP session that we use throughout the execution of the program.
     ///
     /// An important invariant we are making sure we keep is that the session is always in the
@@ -69,7 +92,7 @@ struct InboxCapabilities {
     has_move: bool,
 }
 
-impl Inbox<TlsStream<TcpStream>> {
+impl IMAPInbox<TlsStream<TcpStream>> {
     /// Creates an `Inbox` using a `TlsConnector` using username/password credentials.
     pub fn new_tls(
         domain: &str,
@@ -98,7 +121,7 @@ impl Inbox<TlsStream<TcpStream>> {
             .capabilities()
             .with_context(|| "Failed to fetch capabilities.")?;
 
-        Ok(Inbox {
+        Ok(IMAPInbox {
             imap_session,
             capabilities: InboxCapabilities {
                 has_move: capabilities.has_str("MOVE"),
@@ -108,7 +131,7 @@ impl Inbox<TlsStream<TcpStream>> {
     }
 }
 
-impl<T: Read + Write> Inbox<T> {
+impl<T: Read + Write> IMAPInbox<T> {
     fn select(&mut self, folder: &Folder) -> anyhow::Result<()> {
         self.imap_session
             .select(&folder.name)
@@ -123,8 +146,11 @@ impl<T: Read + Write> Inbox<T> {
         Ok(())
     }
 
-    /// Lists all folders of the IMAP session
-    pub fn list_folders(&mut self) -> anyhow::Result<Vec<Folder>> {
+    
+}
+
+impl<T: Read + Write> Inbox for IMAPInbox<T> {
+    fn list_folders(&mut self) -> anyhow::Result<Vec<Folder>> {
         let results = self.imap_session.list(None, Some("*"));
         Ok(results?
             .iter()
@@ -134,9 +160,7 @@ impl<T: Read + Write> Inbox<T> {
             .collect())
     }
 
-    /// Fetches *all* messages in a specific folder, along with their bodies. This could be a quite a
-    /// slow operation.
-    pub fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
+    fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
         self.select(folder)?;
 
         let messages = self
@@ -168,11 +192,7 @@ impl<T: Read + Write> Inbox<T> {
         result
     }
 
-    /// Moves a message to a destination folder.
-    ///
-    /// Moving an invalid message or to an invalid folder will still return `Ok` but it will be a
-    /// no-op on the IMAP server.
-    pub fn move_message_to_folder(
+    fn move_message_to_folder(
         &mut self,
         message: &mut Message,
         destination_folder: &Folder,
@@ -201,8 +221,7 @@ impl<T: Read + Write> Inbox<T> {
         Ok(())
     }
 
-    /// Deletes a message from the containing folder (that is stored in the [Message] struct).
-    pub fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()> {
+    fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()> {
         let containing_folder = message
             .containing_folder()
             .ok_or(anyhow::format_err!("Message is invalid"))?;
@@ -223,7 +242,7 @@ impl<T: Read + Write> Inbox<T> {
     }
 }
 
-impl<T: Read + Write> Drop for Inbox<T> {
+impl<T: Read + Write> Drop for IMAPInbox<T> {
     fn drop(&mut self) {
         let _ = self.imap_session.logout();
     }

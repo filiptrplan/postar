@@ -1,6 +1,6 @@
 use std::{env::current_dir, net::TcpStream, path::PathBuf};
 
-use crate::inbox::{Folder, Inbox};
+use crate::inbox::{Folder, IMAPInbox, Inbox};
 use anyhow::Result;
 use mail_send::SmtpClientBuilder;
 use native_tls::TlsStream;
@@ -50,8 +50,8 @@ impl IMAPContainerData {
         Ok(())
     }
 
-    pub fn create_inbox(&self) -> anyhow::Result<Inbox<TlsStream<TcpStream>>> {
-        Inbox::new_tls(&self.host, self.imap_port, "bar@example.com", "a", true)
+    pub fn create_inbox(&self) -> anyhow::Result<IMAPInbox<TlsStream<TcpStream>>> {
+        IMAPInbox::new_tls(&self.host, self.imap_port, "bar@example.com", "a", true)
     }
 }
 
@@ -77,10 +77,7 @@ pub async fn get_container() -> IMAPContainerData {
         container,
     }
 }
-pub fn find_folder_contains<T>(inbox: &mut Inbox<T>, pattern: &str) -> Result<Folder>
-where
-    T: std::io::Read + std::io::Write,
-{
+pub fn find_folder_contains(inbox: &mut impl Inbox, pattern: &str) -> Result<Folder> {
     inbox
         .list_folders()?
         .into_iter()
@@ -91,10 +88,7 @@ where
         ))
 }
 
-pub fn find_folder_equals<T>(inbox: &mut Inbox<T>, name: &str) -> Result<Folder>
-where
-    T: std::io::Read + std::io::Write,
-{
+pub fn find_folder_equals(inbox: &mut impl Inbox, name: &str) -> Result<Folder> {
     inbox
         .list_folders()?
         .into_iter()
