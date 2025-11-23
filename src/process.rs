@@ -98,11 +98,7 @@ impl StringMatcher {
 }
 
 impl Action {
-    fn execute<T: Read + Write, I: Inbox>(
-        &self,
-        inbox: &mut I,
-        message: &mut Message,
-    ) -> anyhow::Result<()> {
+    fn execute(&self, inbox: &mut impl Inbox, message: &mut Message) -> anyhow::Result<()> {
         match self {
             Action::Delete => inbox.delete_message(message)?,
             Action::Move(folder) => inbox.move_message_to_folder(message, folder)?,

@@ -1,5 +1,6 @@
-use crate::inbox::{Folder, Message, MessageBuilder};
-use crate::process::{Matcher, StringMatcher};
+use crate::inbox::{Folder, Inbox, Message, MessageBuilder};
+use crate::process::{Action, Matcher, StringMatcher};
+use crate::test_helpers::MockInbox;
 use mail_parser::MessageParser;
 use test_log::test;
 
@@ -328,6 +329,232 @@ fn test_matcher_complex_nested_structure() {
     assert!(!final_matcher.matches(&message3));
 }
 
+#[test]
+fn test_action_execute_delete() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Message\r\n\r\nThis is the body.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+
+    // Get the message and execute delete action
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let delete_action = Action::Delete;
+    delete_action.execute(&mut inbox, &mut message).unwrap();
+
+    // Verify message is deleted from INBOX
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    // Verify message is marked as invalid
+    assert!(!message.is_valid());
+}
+
+#[test]
+fn test_action_execute_move_to_existing_folder() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Message\r\n\r\nThis is the body.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+    assert_eq!(inbox.message_count("Processed"), 0);
+
+    // Get the message and execute move action
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let destination_folder = Folder {
+        name: "Processed".to_string(),
+    };
+    let move_action = Action::Move(destination_folder.clone());
+    move_action.execute(&mut inbox, &mut message).unwrap();
+
+    // Verify message is moved from INBOX to Processed
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Processed"), 1);
+    // Verify original message is marked as invalid
+    assert!(!message.is_valid());
+
+    // Verify the message exists in the destination folder
+    let moved_messages = inbox.fetch_messages_in_folder(&destination_folder).unwrap();
+    assert_eq!(moved_messages.len(), 1);
+    assert_eq!(moved_messages[0].subject().unwrap(), "Test Message");
+}
+
+#[test]
+fn test_action_execute_move_to_custom_folder() {
+    let mut inbox = MockInbox::with_folders(vec!["INBOX", "Archive"]);
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Archive Me\r\n\r\nThis should be archived.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+    assert_eq!(inbox.message_count("Archive"), 0);
+
+    // Get the message and execute move action
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let destination_folder = Folder {
+        name: "Archive".to_string(),
+    };
+    let move_action = Action::Move(destination_folder.clone());
+    move_action.execute(&mut inbox, &mut message).unwrap();
+
+    // Verify message is moved
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Archive"), 1);
+
+    // Verify the moved message has correct content
+    let moved_messages = inbox.fetch_messages_in_folder(&destination_folder).unwrap();
+    assert_eq!(moved_messages[0].subject().unwrap(), "Archive Me");
+}
+
+#[test]
+fn test_action_execute_move_nonexistent_folder() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Message\r\n\r\nThis is the body.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+
+    // Get the message and try to move to nonexistent folder
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let nonexistent_folder = Folder {
+        name: "NonExistent".to_string(),
+    };
+    let move_action = Action::Move(nonexistent_folder);
+
+    // MockInbox silently succeeds when moving to nonexistent folder
+    let result = move_action.execute(&mut inbox, &mut message);
+    assert!(result.is_ok());
+
+    // Message is removed from INBOX but lost (not in any folder)
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("NonExistent"), 0);
+    // Original message is marked as invalid
+    assert!(!message.is_valid());
+}
+
+#[test]
+fn test_action_execute_delete_invalid_message() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Message\r\n\r\nThis is the body.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+
+    // Get message and manually mark it as invalid
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+    message.set_invalid();
+
+    let delete_action = Action::Delete;
+
+    // Should return an error since message is invalid
+    let result = delete_action.execute(&mut inbox, &mut message);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_action_execute_move_invalid_message() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Message\r\n\r\nThis is the body.";
+
+    // Add message to INBOX
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+
+    // Get message and manually mark it as invalid
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+    message.set_invalid();
+
+    let destination_folder = Folder {
+        name: "Processed".to_string(),
+    };
+    let move_action = Action::Move(destination_folder);
+
+    // Should return an error since message is invalid
+    let result = move_action.execute(&mut inbox, &mut message);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_action_execute_multiple_messages() {
+    let mut inbox = MockInbox::new();
+    let message_body1 = b"From: sender1@example.com\r\nTo: recipient@example.com\r\nSubject: Message 1\r\n\r\nBody 1.";
+    let message_body2 = b"From: sender2@example.com\r\nTo: recipient@example.com\r\nSubject: Message 2\r\n\r\nBody 2.";
+    let message_body3 = b"From: sender3@example.com\r\nTo: recipient@example.com\r\nSubject: Message 3\r\n\r\nBody 3.";
+
+    // Add three messages to INBOX
+    inbox.add_message("INBOX", message_body1.to_vec()).unwrap();
+    inbox.add_message("INBOX", message_body2.to_vec()).unwrap();
+    inbox.add_message("INBOX", message_body3.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 3);
+
+    // Get all messages
+    let mut messages = inbox
+        .fetch_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+
+    // Delete first message
+    let delete_action = Action::Delete;
+    delete_action.execute(&mut inbox, &mut messages[0]).unwrap();
+
+    // Move second message to Processed
+    let destination_folder = Folder {
+        name: "Processed".to_string(),
+    };
+    let move_action = Action::Move(destination_folder);
+    move_action.execute(&mut inbox, &mut messages[1]).unwrap();
+
+    // Move third message to Spam
+    let spam_folder = Folder {
+        name: "Spam".to_string(),
+    };
+    let spam_action = Action::Move(spam_folder);
+    spam_action.execute(&mut inbox, &mut messages[2]).unwrap();
+
+    // Verify final state
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Processed"), 1);
+    assert_eq!(inbox.message_count("Spam"), 1);
+
+    // Verify all original messages are marked as invalid
+    assert!(!messages[0].is_valid());
+    assert!(!messages[1].is_valid());
+    assert!(!messages[2].is_valid());
+}
 fn create_message_with_from(subject: &str, from: &str) -> Message {
     let email_body = format!(
         "From: {}\r\n\
