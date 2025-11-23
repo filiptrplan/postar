@@ -977,3 +977,172 @@ async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_body_returns_content() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Test that body returns some content for messages
+    for message in &messages {
+        let body = message.body();
+        info!(
+            "Message {} subject {} length {} raw {}",
+            message.uid().unwrap(),
+            message.subject().unwrap(),
+            body.len(),
+            message.borrow_message().raw_message().len()
+        );
+        assert!(!body.is_empty(), "Message body should not be empty");
+        // Body should contain some text content
+        assert!(
+            body.len() > 10,
+            "Message body should have substantial content"
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_body_contains_expected_html_content() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Find the billing issues message (0.eml) which has HTML content
+    let billing_message = messages
+        .iter()
+        .find(|x| x.subject().unwrap_or_default().contains("Billing Issues"))
+        .ok_or(anyhow::format_err!("Cannot find billing message"))?;
+
+    let body = billing_message.body();
+
+    // Check that it contains expected HTML content from the email
+    assert!(
+        body.contains("Dear valued"),
+        "Body should contain the greeting"
+    );
+    assert!(body.contains("eBay Inc."), "Body should contain eBay Inc.");
+    assert!(body.contains("<html>"), "Body should contain HTML tags");
+    assert!(
+        body.contains("</html>"),
+        "Body should contain closing HTML tag"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_body_handles_different_content_types() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Test various messages to ensure body handles different content types
+    for (i, message) in messages.iter().enumerate() {
+        let body = message.body();
+        info!("Message {} body length: {}", i, body.len());
+
+        // All messages should have some body content
+        assert!(!body.is_empty(), "Message {} should have body content", i);
+
+        // Check if it contains HTML or text content
+        let has_html = body.contains("<html>") || body.contains("<p>") || body.contains("<br>");
+        let has_text = body.chars().any(|c| c.is_alphabetic()) && !body.contains("<html>");
+
+        assert!(
+            has_html || has_text,
+            "Message {} should have either HTML or text content",
+            i
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_body_concatenation_order() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Test that HTML bodies come before text bodies in the concatenation
+    for message in &messages {
+        let body = message.body();
+
+        // If the message has both HTML and text parts, HTML should come first
+        let html_start = body.find("<html>");
+        let text_start = body.find("Dear"); // Common text start
+
+        if let (Some(html_pos), Some(text_pos)) = (html_start, text_start) {
+            assert!(
+                html_pos < text_pos,
+                "HTML content should appear before text content in body"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_body_for_invalid_message() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let mut test_message = messages.into_iter().next().unwrap();
+
+    // Make the message invalid
+    test_message.set_invalid();
+
+    // Body should still return content even for invalid messages
+    let body = test_message.body();
+    assert!(
+        !body.is_empty(),
+        "Invalid message should still return body content"
+    );
+
+    Ok(())
+}

@@ -262,25 +262,15 @@ impl Message {
     }
 
     pub fn body(&self) -> String {
-        let html_bodies = self
-            .borrow_message()
-            .html_bodies()
+        self.borrow_message()
+            .parts
+            .iter()
             .map(|x| match x.body.clone() {
                 mail_parser::PartType::Text(txt) => txt,
                 mail_parser::PartType::Html(txt) => txt,
                 _ => std::borrow::Cow::Borrowed(""),
             })
-            .fold("".to_string(), |acc, x| acc + &x);
-        let text_bodies = self
-            .borrow_message()
-            .text_bodies()
-            .map(|x| match x.body.clone() {
-                mail_parser::PartType::Text(txt) => txt,
-                mail_parser::PartType::Html(txt) => txt,
-                _ => std::borrow::Cow::Borrowed(""),
-            })
-            .fold("".to_string(), |acc, x| acc + &x);
-        html_bodies + &text_bodies
+            .fold("".to_string(), |acc, x| acc + &x)
     }
 
     pub fn is_valid(&self) -> bool {
