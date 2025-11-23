@@ -1,6 +1,8 @@
+use std::{io::Read, io::Write};
+
 use log::{info, warn};
 
-use crate::inbox::{Folder, Message};
+use crate::inbox::{Folder, Inbox, Message};
 
 #[cfg(test)]
 pub mod tests;
@@ -92,5 +94,19 @@ impl StringMatcher {
             StringMatcher::Equals(pattern) => input.to_lowercase() == pattern.to_lowercase(),
             StringMatcher::Regex(regex) => regex.is_match(input),
         }
+    }
+}
+
+impl Action {
+    fn execute<T: Read + Write>(
+        &self,
+        inbox: &mut Inbox<T>,
+        message: &mut Message,
+    ) -> anyhow::Result<()> {
+        match self {
+            Action::Delete => inbox.delete_message(message)?,
+            Action::Move(folder) => inbox.move_message_to_folder(message, folder)?,
+        };
+        Ok(())
     }
 }
