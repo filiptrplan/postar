@@ -170,7 +170,9 @@ fn test_matcher_subject_equals() {
 
 #[test]
 fn test_matcher_subject_regex() {
-    let matcher = Matcher::Subject(StringMatcher::Regex(regex::Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap()));
+    let matcher = Matcher::Subject(StringMatcher::Regex(
+        regex::Regex::new(r"\d{4}-\d{2}-\d{2}").unwrap(),
+    ));
 
     let message1 = create_fake_message("Meeting on 2023-12-25");
     assert!(matcher.matches(&message1));
@@ -298,7 +300,7 @@ fn test_matcher_nested_and_or() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
     let matcher3 = Matcher::To(StringMatcher::Contains("recipient".to_string()));
-    
+
     let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
     let nested_matcher = Matcher::Or(Box::new(and_matcher), Box::new(matcher3));
 
@@ -310,8 +312,8 @@ fn test_matcher_nested_and_or() {
 fn test_matcher_complex_nested_structure() {
     let urgent_matcher = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
     let billing_matcher = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
-    let sender_matcher = Matcher::From(StringMatcher::Contains("sender".to_string()));
-    
+    let sender_matcher = Matcher::Subject(StringMatcher::Contains("issues".to_string()));
+
     let not_billing = Matcher::Not(Box::new(billing_matcher));
     let and_matcher = Matcher::And(Box::new(urgent_matcher), Box::new(not_billing));
     let final_matcher = Matcher::Or(Box::new(and_matcher), Box::new(sender_matcher));

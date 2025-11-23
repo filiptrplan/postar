@@ -43,10 +43,10 @@ pub struct Rule {
 
 impl Matcher {
     fn matches(&self, message: &Message) -> bool {
+        // TODO: think about whether we want to error out or silently fail when subject
+        // doesn't exist
         match self {
             Matcher::Subject(string_matcher) => {
-                // TODO: think about whether we want to error out or silently fail when subject
-                // doesn't exist
                 if let Some(string) = &message.subject() {
                     string_matcher.matches(string)
                 } else {
@@ -54,7 +54,28 @@ impl Matcher {
                     false
                 }
             }
-            _ => unimplemented!(),
+            Matcher::From(string_matcher) => {
+                if let Some(string) = &message.from() {
+                    string_matcher.matches(string)
+                } else {
+                    warn!("Failed to get from.");
+                    false
+                }
+            }
+            Matcher::To(string_matcher) => {
+                if let Some(string) = &message.to() {
+                    string_matcher.matches(string)
+                } else {
+                    warn!("Failed to get to.");
+                    false
+                }
+            }
+            Matcher::Body(string_matcher) => string_matcher.matches(&message.body()),
+            Matcher::And(matcher, matcher1) => {
+                matcher.matches(message) && matcher1.matches(message)
+            }
+            Matcher::Or(matcher, matcher1) => matcher.matches(message) || matcher1.matches(message),
+            Matcher::Not(matcher) => !matcher.matches(message),
         }
     }
 }
