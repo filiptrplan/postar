@@ -1,6 +1,6 @@
 use std::{io::Read, io::Write};
 
-use log::{info, warn};
+use log::warn;
 
 use crate::inbox::{Folder, Inbox, Message};
 

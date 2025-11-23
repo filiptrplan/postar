@@ -3,7 +3,6 @@
 ///
 /// Currently, it only supports the IMAP protocol.
 use anyhow::Context;
-use chrono::prelude::*;
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use ouroboros::self_referencing;
@@ -52,8 +51,6 @@ pub struct Inbox<T: Read + Write> {
     /// start of each operation, you select the desired folder, do the operations, and then execute
     /// the `close` command.
     imap_session: Session<T>,
-    /// The date of the last fetch. Used to periodically fetch new messages.
-    last_fetch_date: DateTime<Local>,
     /// The capabilities of the IMAP server. Used for checking whether we can perform various
     /// opetaions
     capabilities: InboxCapabilities,
@@ -103,7 +100,6 @@ impl Inbox<TlsStream<TcpStream>> {
 
         Ok(Inbox {
             imap_session,
-            last_fetch_date: DateTime::from_timestamp_nanos(0).into(),
             capabilities: InboxCapabilities {
                 has_move: capabilities.has_str("MOVE"),
             },

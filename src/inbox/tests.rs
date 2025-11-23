@@ -1,96 +1,17 @@
-use std::{env::current_dir, net::TcpStream, path::PathBuf};
-
 use log::info;
 use mail_parser::MessageParser;
-use mail_send::SmtpClientBuilder;
-use native_tls::TlsStream;
-use testcontainers::{
-    ContainerAsync, GenericImage, ImageExt,
-    core::{IntoContainerPort, Mount, WaitFor},
-    runners::AsyncRunner,
-};
-use tokio::io::AsyncBufReadExt;
 
 use crate::inbox::{Inbox, InboxState, MessageBuilder};
-
-struct IMAPContainerData {
-    host: String,
-    imap_port: u16,
-    smtp_port: u16,
-    #[allow(unused)]
-    container: ContainerAsync<GenericImage>,
-}
-
-fn get_mock_email_dir() -> PathBuf {
-    PathBuf::from(current_dir().unwrap().to_str().unwrap().to_owned() + "/mock_emails")
-}
-
-impl IMAPContainerData {
-    #[allow(dead_code)]
-    async fn print_container_logs(&self) {
-        let logs = self.container.stdout(false); // false = read from startup to present
-
-        let mut lines = logs.lines();
-
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("{}", line);
-        }
-    }
-
-    async fn send_email(
-        &self,
-        message: mail_send::mail_builder::MessageBuilder<'_>,
-    ) -> anyhow::Result<()> {
-        SmtpClientBuilder::new(self.host.as_str(), self.smtp_port)
-            .implicit_tls(true)
-            .allow_invalid_certs()
-            .credentials(("foo", "a"))
-            .connect()
-            .await?
-            .send(message)
-            .await?;
-        Ok(())
-    }
-
-    fn create_inbox(&self) -> anyhow::Result<Inbox<TlsStream<TcpStream>>> {
-        Inbox::new_tls(&self.host, self.imap_port, "bar@example.com", "a", true)
-    }
-}
-
-async fn get_container() -> IMAPContainerData {
-    let port = 3993;
-    let smtp_port = 3465;
-    let container = GenericImage::new("greenmail/standalone", "2.1.7")
-        .with_exposed_port(port.tcp())
-        .with_wait_for(WaitFor::message_on_stdout("Starting GreenMail"))
-        .with_wait_for(WaitFor::seconds(1))
-        .with_env_var(
-            "GREENMAIL_OPTS",
-            "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled -Dgreenmail.preload.dir=/tmp/preload -Dgreenmail.verbose",
-        )
-        .with_mount(Mount::bind_mount(get_mock_email_dir().into_os_string().into_string().unwrap(), "/tmp/preload"))
-        .start().await
-        .unwrap();
-
-    IMAPContainerData {
-        host: container.get_host().await.unwrap().to_string(),
-        imap_port: container.get_host_port_ipv4(port).await.unwrap(),
-        smtp_port: container.get_host_port_ipv4(smtp_port).await.unwrap(),
-        container,
-    }
-}
+use crate::test_helpers::{
+    find_folder_contains, find_folder_equals, get_container, get_mock_email_dir,
+};
 
 #[tokio::test]
 #[test_log::test]
 async fn test_send_email() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name == "INBOX")
-        .clone()
-        .unwrap();
+    let folder = find_folder_equals(&mut inbox, "INBOX")?;
 
     let initial_emails = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -216,11 +137,7 @@ async fn test_fetch_empty_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests2"))
-        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests2")?;
 
     let emails = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -235,11 +152,7 @@ async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let emails = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -254,11 +167,7 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let emails = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -287,17 +196,8 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let source_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
-
-    let dest_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests2"))
-        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+    let source_folder = find_folder_contains(&mut inbox, "tests1")?;
+    let dest_folder = find_folder_contains(&mut inbox, "tests2")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
     let initial_count = messages.len();
@@ -343,11 +243,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&folder)?;
     let initial_count = messages.len();
@@ -389,11 +285,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let source_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let source_folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let non_existing_folder = crate::inbox::Folder {
         name: "INBOX.NonExistingFolder".to_string(),
@@ -434,17 +326,8 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let source_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
-
-    let dest_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests2"))
-        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+    let source_folder = find_folder_contains(&mut inbox, "tests1")?;
+    let dest_folder = find_folder_contains(&mut inbox, "tests2")?;
 
     let mut body_path = get_mock_email_dir();
     body_path.push("bar@example.com/INBOX/tests1/0.eml");
@@ -480,17 +363,8 @@ async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let source_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
-
-    let dest_folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests2"))
-        .ok_or(anyhow::format_err!("Cannot find tests2 folder"))?;
+    let source_folder = find_folder_contains(&mut inbox, "tests1")?;
+    let dest_folder = find_folder_contains(&mut inbox, "tests2")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
     let mut message_to_move = messages.remove(0);
@@ -511,11 +385,7 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&folder)?;
     let initial_count = messages.len();
@@ -553,11 +423,7 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let body_path = get_mock_email_dir().join("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
@@ -592,11 +458,7 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let body_path = get_mock_email_dir().join("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
@@ -628,11 +490,7 @@ async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<(
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&folder)?;
     let mut message_to_delete = messages.remove(0);
@@ -654,11 +512,7 @@ async fn test_delete_multiple_messages() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let mut messages = inbox.fetch_messages_in_folder(&folder)?;
     let initial_count = messages.len();
@@ -699,11 +553,7 @@ async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -727,11 +577,7 @@ async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Resu
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -761,11 +607,7 @@ async fn test_message_from_returns_correct_format() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -791,11 +633,7 @@ async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()>
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -825,11 +663,7 @@ async fn test_message_to_returns_correct_format() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -855,11 +689,7 @@ async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -886,11 +716,7 @@ async fn test_message_fields_consistency() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -927,11 +753,7 @@ async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -984,11 +806,7 @@ async fn test_message_body_returns_content() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -1019,11 +837,7 @@ async fn test_message_body_contains_expected_html_content() -> anyhow::Result<()
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -1056,11 +870,7 @@ async fn test_message_body_handles_different_content_types() -> anyhow::Result<(
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -1092,11 +902,7 @@ async fn test_message_body_concatenation_order() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -1125,11 +931,7 @@ async fn test_message_body_for_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
-    let folder = inbox
-        .list_folders()?
-        .into_iter()
-        .find(|x| x.name.contains("tests1"))
-        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+    let folder = find_folder_contains(&mut inbox, "tests1")?;
 
     let messages = inbox.fetch_messages_in_folder(&folder)?;
     let mut test_message = messages.into_iter().next().unwrap();
