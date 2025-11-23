@@ -244,32 +244,20 @@ impl Message {
     pub fn from(&self) -> Option<String> {
         self.borrow_message().from().map(|from| {
             from.iter()
-                .fold(String::from(""), |acc, x| {
-                    format!(
-                        "{}, {} <{}>",
-                        acc,
-                        x.name().unwrap_or(""),
-                        x.address().unwrap_or("")
-                    )
-                })
-                .to_string()
+                .map(|x| format!("{} <{}>", x.name().unwrap_or(""), x.address().unwrap_or("")))
+                .reduce(|acc, x| acc + ", " + &x)
+                .unwrap_or("".to_string())
         })
     }
 
     /// To field. All the separate addresses are concatenated in the following format: `name1
     /// <addr1>, name2 <addr2>, ...`.
     pub fn to(&self) -> Option<String> {
-        self.borrow_message().from().map(|from| {
+        self.borrow_message().to().map(|from| {
             from.iter()
-                .fold(String::from(""), |acc, x| {
-                    format!(
-                        "{}, {} <{}>",
-                        acc,
-                        x.name().unwrap_or(""),
-                        x.address().unwrap_or("")
-                    )
-                })
-                .to_string()
+                .map(|x| format!("{} <{}>", x.name().unwrap_or(""), x.address().unwrap_or("")))
+                .reduce(|acc, x| acc + ", " + &x)
+                .unwrap_or("".to_string())
         })
     }
 

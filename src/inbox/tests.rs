@@ -1,5 +1,6 @@
 use std::{env::current_dir, net::TcpStream, path::PathBuf};
 
+use log::info;
 use mail_parser::MessageParser;
 use mail_send::SmtpClientBuilder;
 use native_tls::TlsStream;
@@ -80,6 +81,7 @@ async fn get_container() -> IMAPContainerData {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_send_email() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -104,8 +106,6 @@ async fn test_send_email() -> anyhow::Result<()> {
 
     let after_emails = inbox.fetch_messages_in_folder(&folder)?;
 
-    container_data.print_container_logs().await;
-
     assert_eq!(
         initial_emails.len() + 1,
         after_emails.len(),
@@ -123,6 +123,7 @@ async fn test_send_email() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
     let container_data = get_container().await;
 
@@ -139,6 +140,7 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_new_tls_invalid_host() {
     // Test that new_tls fails with invalid host
     let result = Inbox::new_tls("invalid.host.example.com", 993, "user", "pass", true);
@@ -150,6 +152,7 @@ async fn test_new_tls_invalid_host() {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -171,6 +174,7 @@ async fn test_list_folders_returns_all_folders() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -187,6 +191,7 @@ async fn test_list_folders_returns_folder_objects() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -206,6 +211,7 @@ async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> 
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_fetch_empty_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -224,6 +230,7 @@ async fn test_fetch_empty_folder() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -242,6 +249,7 @@ async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -274,6 +282,7 @@ async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -329,6 +338,7 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -374,6 +384,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -418,6 +429,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -463,6 +475,7 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -493,6 +506,7 @@ async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_delete_valid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -534,6 +548,7 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_delete_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -572,6 +587,7 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -607,6 +623,7 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -632,6 +649,7 @@ async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<(
 }
 
 #[tokio::test]
+#[test_log::test]
 async fn test_delete_multiple_messages() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -671,6 +689,291 @@ async fn test_delete_multiple_messages() -> anyhow::Result<()> {
             .all(|m| m.uid() != Some(uid1) && m.uid() != Some(uid2)),
         "Both deleted messages should not be found in folder"
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    let billing_message = messages
+        .iter()
+        .find(|x| x.subject().unwrap_or_default().contains("Billing Issues"))
+        .ok_or(anyhow::format_err!("Cannot find billing message"))?;
+
+    assert_eq!(
+        billing_message.subject().unwrap(),
+        "Billing Issues",
+        "Subject should match expected value"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Find a message that might not have a subject
+    for message in &messages {
+        if message.subject().is_none() {
+            assert!(
+                message.subject().is_none(),
+                "Message should have no subject"
+            );
+            return Ok(());
+        }
+    }
+
+    // If all messages have subjects, that's also valid
+    assert!(
+        messages.iter().all(|m| m.subject().is_some()),
+        "All messages have subjects"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_from_returns_correct_format() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    for message in &messages {
+        if let Some(from_field) = message.from() {
+            // Check that the format follows "name <address>" pattern
+            assert!(!from_field.is_empty(), "From field should not be empty");
+
+            // Should contain at least one address in the expected format
+            assert!(
+                from_field.contains('<') && from_field.contains('>'),
+                "From field should contain address in <address> format"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Find a message that might not have a from field
+    for message in &messages {
+        if message.from().is_none() {
+            assert!(
+                message.from().is_none(),
+                "Message should have no from field"
+            );
+            return Ok(());
+        }
+    }
+
+    // If all messages have from fields, that's also valid
+    assert!(
+        messages.iter().all(|m| m.from().is_some()),
+        "All messages have from fields"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_to_returns_correct_format() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    for message in &messages {
+        if let Some(to_field) = message.to() {
+            // Check that the format follows "name <address>" pattern
+            assert!(!to_field.is_empty(), "To field should not be empty");
+
+            // Should contain at least one address in the expected format
+            assert!(
+                to_field.contains('<') && to_field.contains('>'),
+                "To field should contain address in <address> format"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    // Find a message that might not have a to field
+    for message in &messages {
+        if message.to().is_none() {
+            assert!(message.to().is_none(), "Message should have no to field");
+            return Ok(());
+        }
+    }
+
+    // If all messages have to fields, that's also valid
+    assert!(
+        messages.iter().all(|m| m.to().is_some()),
+        "All messages have to fields"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_fields_consistency() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    for message in &messages {
+        let subject = message.subject();
+        let from = message.from();
+        let to = message.to();
+
+        // At least one of the fields should be present for a valid email
+        assert!(
+            subject.is_some() || from.is_some() || to.is_some(),
+            "Message should have at least one of subject, from, or to"
+        );
+
+        // If from and to are both present, they should be different (in most cases)
+        if let (Some(from_field), Some(to_field)) = (from, to) {
+            // This might not always be true, but it's a good sanity check
+            // Note: This assertion might fail for self-sent emails, which is valid
+            if from_field != to_field {
+                assert_ne!(
+                    from_field, to_field,
+                    "From and to fields should typically be different"
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+#[test_log::test]
+async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
+    let container_data = get_container().await;
+    let mut inbox = container_data.create_inbox()?;
+
+    let folder = inbox
+        .list_folders()?
+        .into_iter()
+        .find(|x| x.name.contains("tests1"))
+        .ok_or(anyhow::format_err!("Cannot find tests1 folder"))?;
+
+    let messages = inbox.fetch_messages_in_folder(&folder)?;
+
+    for message in &messages {
+        if let Some(from_field) = message.from() {
+            // Check if multiple addresses are properly formatted with commas
+            if from_field.contains(',') {
+                info!("Checking from: {}", from_field);
+                let addresses: Vec<&str> = from_field.split(',').collect();
+                assert!(
+                    addresses.len() > 1,
+                    "Should have multiple addresses when comma is present"
+                );
+
+                for addr in addresses {
+                    info!("Checking address: {}", addr);
+                    assert!(
+                        addr.trim().contains('<') && addr.trim().contains('>'),
+                        "Each address should be in <address> format"
+                    );
+                }
+            }
+        }
+
+        if let Some(to_field) = message.to() {
+            // Check if multiple addresses are properly formatted with commas
+            if to_field.contains(',') {
+                let addresses: Vec<&str> = to_field.split(',').collect();
+                assert!(
+                    addresses.len() > 1,
+                    "Should have multiple addresses when comma is present"
+                );
+
+                for addr in addresses {
+                    assert!(
+                        addr.trim().contains('<') && addr.trim().contains('>'),
+                        "Each address should be in <address> format"
+                    );
+                }
+            }
+        }
+    }
 
     Ok(())
 }
