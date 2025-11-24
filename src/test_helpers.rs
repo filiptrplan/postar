@@ -65,7 +65,7 @@ pub async fn get_container() -> IMAPContainerData {
     let container = GenericImage::new("greenmail/standalone", "2.1.7")
         .with_exposed_port(port.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Starting GreenMail"))
-        .with_wait_for(WaitFor::seconds(1))
+        .with_wait_for(WaitFor::seconds(3))
         .with_env_var(
             "GREENMAIL_OPTS",
             "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled -Dgreenmail.preload.dir=/tmp/preload -Dgreenmail.verbose",
