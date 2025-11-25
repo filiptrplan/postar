@@ -15,55 +15,56 @@ pub enum Token {
     #[token("matcher")]
     KwMatcher,
     #[token("action")]
-    KwAction
+    KwAction,
 
     // Matcher keywords
-    #[token("name")]
+    #[token("and")]
     KwAnd,
-    #[token("name")]
+    #[token("or")]
     KwOr,
-    #[token("name")]
+    #[token("not")]
     KwNot,
-    #[token("name")]
+    #[token("subject")]
     KwSubject,
-    #[token("name")]
+    #[token("to")]
     KwTo,
-    #[token("name")]
+    #[token("from")]
     KwFrom,
-    #[token("name")]
+    #[token("body")]
     KwBody,
-    #[token("name")]
+    #[token("startswith")]
     KwStartsWith,
-    #[token("name")]
+    #[token("contains")]
     KwContains,
-    #[token("name")]
+    #[token("equals")]
     KwEquals,
-    #[token("name")]
+    #[token("regex")]
     KwRegex,
 
     // Action keywords
-    #[token("name")]
+    #[token("delete")]
     KwDelete,
-    #[token("name")]
+    #[token("moveto")]
     KwMoveTo,
 
     // Ident and string
+    #[regex("((?:[^"\\x00-\\x1F]|\\["\\/bfnrt]|\\u[0-9A-Fa-f]{4})*)")]
     Ident(String),
     Str(String),
 
     // Symbols
-    #[token("name")]
+    #[token("{")]
     LBrace,
-    #[token("name")]
+    #[token("}")]
     RBrace,
-    #[token("name")]
+    #[token("[")]
     LBracket,
-    #[token("name")]
+    #[token("]")]
     RBracket,
-    #[token("name")]
+    #[token("(")]
     LParen,
-    #[token("name")]
+    #[token(")")]
     RParen,
-    #[token("name")]
-    Colon
+    #[token(":")]
+    Colon,
 }
