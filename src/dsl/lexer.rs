@@ -1,6 +1,6 @@
 use logos::Logos;
 
-#[derive(Logos)]
+#[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
 pub enum Token {
     // Definition keywords
@@ -48,8 +48,9 @@ pub enum Token {
     KwMoveTo,
 
     // Ident and string
-    #[regex("((?:[^"\\x00-\\x1F]|\\["\\/bfnrt]|\\u[0-9A-Fa-f]{4})*)")]
+    #[regex(r"[a-z][a-z0-9_]*", |lex| lex.slice().to_owned())]
     Ident(String),
+    #[regex(r#""([^"\\\x00-\x1f]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))*""#, |lex| lex.slice().to_owned())]
     Str(String),
 
     // Symbols
