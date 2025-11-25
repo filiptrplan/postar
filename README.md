@@ -12,6 +12,13 @@ A local email filtering service.
 - [x] ability to login to IMAP email inboxes
 - [x] ability to move emails to different folders
 - [x] ability to delete emails
+- [ ] DSL
+  - [ ] AST
+  - [ ] logos lexer
+    - [ ] https://docs.rs/logos/latest/logos/struct.Lexer.html#method.spanned
+  - [ ] chumsky parser
+    - [ ] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
+  - [ ] Ariadne error reporting
 - [ ] detecting new emails
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
