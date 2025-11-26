@@ -48,3 +48,7 @@
 - When asked to write tests, it is okay if they fail. Maybe the problem is in the implementation. You were asked to write the tests to discover bugs.
 - Do NOT change the implementation unless EXPLICITLY told to do so when writing tests.
 
+## Important files
+
+- `DSL.md`: the specification of the DSL used for configuring the program. Read when writing tests for lexer/parser/resolver/etc.
+- `src/inbox.rs`: main Inbox trait that is used for manipulating emails
