@@ -1,20 +1,20 @@
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ParserRoot {
-    pub(super) folder_definitions: Vec<ParserFolder>,
-    pub(super) rule_definitions: Vec<ParserRule>,
+pub struct ParserRoot {
+    pub folder_definitions: Vec<ParserFolder>,
+    pub rule_definitions: Vec<ParserRule>,
 }
 
 /// Maps to [crate::process::Rule]
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ParserRule {
-    pub(super) name: String,
-    pub(super) matcher: ParserMatcher,
-    pub(super) action: ParserAction,
+pub struct ParserRule {
+    pub name: String,
+    pub matcher: ParserMatcher,
+    pub action: ParserAction,
 }
 
 /// Maps to [crate::process::Matcher]
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum ParserMatcher {
+pub enum ParserMatcher {
     And(ParserMatchList),
     Or(ParserMatchList),
     Not(Box<ParserMatcher>),
@@ -27,7 +27,7 @@ pub(super) enum ParserMatcher {
 
 /// Maps to [crate::process::StringMatcher]
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum ParserStringMatcher {
+pub enum ParserStringMatcher {
     Contains(String),
     StartsWith(String),
     Equals(String),
@@ -35,24 +35,24 @@ pub(super) enum ParserStringMatcher {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ParserMatchList {
+pub struct ParserMatchList {
     list: Vec<ParserMatcher>,
 }
 
 /// Maps to [crate::process::Action]
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum ParserAction {
+pub enum ParserAction {
     Delete,
     MoveTo(ParserIdentifier),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ParserIdentifier {
-    pub(super) identifier: String,
+pub struct ParserIdentifier {
+    pub identifier: String,
 }
 
 /// Maps to [crate::inbox::Folder]
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ParserFolder {
-    pub(super) name: String,
+pub struct ParserFolder {
+    pub name: String,
 }

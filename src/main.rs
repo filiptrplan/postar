@@ -1,52 +1,34 @@
-use std::env;
+use std::fmt::format;
 
-use postar::{IMAPInbox, Inbox};
+use ariadne::{Label, Report, ReportKind, Source};
+use chumsky::Parser;
+use logos::{Logos, Span};
+use postar::dsl::{
+    File,
+    lexer::{Token, process_tokens},
+    parser::string_matcher,
+};
+
+#[derive(clap::Parser)]
+struct Args {
+    /// Path to the config file
+    #[arg(short, long)]
+    config: std::path::PathBuf,
+}
 
 fn main() {
-    let domain = env::var("DOMAIN").unwrap();
-    let user = env::var("USER").unwrap();
-    let pass = env::var("PASS").unwrap();
-    let port = env::var("PORT").unwrap().parse::<u16>().unwrap();
+    let args = <Args as clap::Parser>::parse();
+    let input_str = std::fs::read_to_string(&args.config).unwrap();
+    let file = File {
+        contents: input_str,
+        file_name: args.config.to_str().unwrap().to_owned(),
+    };
 
-    let mut inbox = IMAPInbox::new_tls(&domain, port, &user, &pass, false).unwrap();
+    let tokens = process_tokens(&file);
 
-    let folder = inbox
-        .list_folders()
-        .unwrap()
-        .into_iter()
-        .find(|x| x.name.contains("Newletters"))
-        .unwrap();
-    let subjects = inbox
-        .fetch_messages_in_folder(&folder)
-        .unwrap()
-        .into_iter()
-        .map(|x| x.subject())
-        .collect::<Vec<Option<String>>>();
+    dbg!(tokens);
 
-    println!("{:?}", subjects);
-
-    // we want to fetch the first email in the INBOX mailbox
-    // imap_session.select("INBOX").unwrap();
+    // let tokens = tokenize(&std::fs::read_to_string(args.config).unwrap());
     //
-    // // fetch message number 1 in this mailbox, along with its RFC822 field.
-    // // RFC 822 dictates the format of the body of e-mails
-    // let messages = imap_session.fetch("1", "RFC822").unwrap();
-    // let message = if let Some(m) = messages.iter().next() {
-    //     m
-    // } else {
-    //     return;
-    // };
-    //
-    // // extract the message's body
-    // let body = message.body().expect("message did not have a body!");
-    // let body = std::str::from_utf8(body)
-    //     .expect("message was not valid utf-8")
-    //     .to_string();
-    //
-    // // be nice to the server and log out
-    // imap_session.logout().unwrap();
-    //
-    // let email = MessageParser::default().parse(&body).unwrap();
-    //
-    // println!("{:?}", email.body_text(0));
+    // println!("{:?}", string_matcher().parse(&tokens));
 }

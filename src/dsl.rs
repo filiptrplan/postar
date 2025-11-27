@@ -1,7 +1,12 @@
 pub mod ast;
-mod lexer;
+pub mod lexer;
 #[cfg(test)]
 pub mod lexer_tests;
-mod parser;
+pub mod parser;
 #[cfg(test)]
 mod parser_tests;
+
+pub struct File {
+    pub file_name: String,
+    pub contents: String,
+}

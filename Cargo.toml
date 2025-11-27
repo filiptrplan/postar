@@ -5,8 +5,10 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+ariadne = "0.6.0"
 chrono = "0.4.42"
 chumsky = "0.11.2"
+clap = { version = "4.5.53", features = ["derive"] }
 imap = "2.4.1"
 imap-proto = "0.16.2"
 log = "0.4.28"
