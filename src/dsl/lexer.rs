@@ -1,4 +1,4 @@
-use ariadne::{Label, Report, ReportKind, Source};
+use ariadne::{Color, Label, Report, ReportKind, Source};
 use logos::{Logos, Span};
 
 use crate::dsl::File;
@@ -76,7 +76,11 @@ pub enum Token {
 fn handle_error(file: &File, span: &Span) {
     Report::build(ReportKind::Error, (&file.file_name, span.clone()))
         .with_message("Syntax error.".to_string())
-        .with_label(Label::new((&file.file_name, span.clone())).with_message("Error detected here"))
+        .with_label(
+            Label::new((&file.file_name, span.clone()))
+                .with_message("Error detected here")
+                .with_color(Color::Red),
+        )
         .finish()
         .print((&file.file_name, Source::from(&file.contents)))
         .unwrap();
@@ -91,6 +95,7 @@ pub fn process_tokens(file: &File) -> anyhow::Result<Vec<(Token, Span)>> {
         syntax_errors.for_each(|(_, span)| {
             handle_error(file, &span);
         });
+        return Err(anyhow::format_err!("Lexing failed."));
     }
 
     Ok(tokens
