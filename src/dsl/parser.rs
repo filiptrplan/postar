@@ -1,3 +1,4 @@
+/// This module handles transforming tokens to the AST.
 use std::ops::Range;
 
 use crate::dsl::{File, ast::*, lexer::Token};
@@ -13,6 +14,7 @@ type Span = SimpleSpan<usize>;
 type TokenInput<'a> = &'a [Token];
 type TokenErr<'a> = extra::Err<ParserError<'a>>;
 
+/// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParserError<'a> {
     ExpectedStringAfterStringMatcher(Span),
@@ -32,7 +34,7 @@ impl ParserError<'_> {
             ParserError::ExpectedFound { span, .. } => *span,
         }
     }
-    pub fn to_lexer_span(&self, spans: &[logos::Span]) -> Range<usize> {
+    fn to_lexer_span(&self, spans: &[logos::Span]) -> Range<usize> {
         let span_range = self.span().into_range();
 
         // Handle case where file is completely empty (no spanced tokens)
@@ -102,6 +104,25 @@ impl ParserError<'_> {
         }
     }
 
+    /// Prints the error to stdout using [ariadne].
+    ///
+    /// `file`: the [File] this error was generated for.
+    ///
+    /// `lexer_spans`: the [spans](logos::Span) that were generated along with the [tokens](Token)
+    /// in the function [process_tokens](crate::dsl::lexer::process_tokens)
+    ///
+    /// # Example
+    /// ```
+    /// let tokens = process_tokens(&file);
+    /// if let Ok(tokens) = tokens {
+    ///     let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
+    ///     let res = string_matcher().parse(&only_tokens);
+    ///     dbg!(
+    ///         res.errors()
+    ///             .for_each(|err| err.print_error(&file, &only_spans)),
+    ///     );
+    /// }
+    /// ```
     pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
         let span = self.to_lexer_span(lexer_spans);
         let file_span = (&file.file_name, span);
@@ -142,6 +163,14 @@ impl<'a> chumsky::label::LabelError<'a, TokenInput<'a>, DefaultExpected<'a, Toke
     }
 }
 
+/// Matches the rule
+/// ```ebnf
+/// string_matcher
+///               = 'contains',  string
+///               | 'startswith', string
+///               | 'equals',     string
+///               | 'regex',      string ;
+/// ```
 pub fn string_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserStringMatcher, TokenErr<'a>> {
     let str_matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(any().try_map(|token, span| {

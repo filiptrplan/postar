@@ -1,3 +1,4 @@
+/// This modules handles lexing a file to tokens.
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use logos::{Logos, Span};
 
@@ -74,7 +75,7 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn to_err_string(&self) -> String {
+    pub(super) fn to_err_string(&self) -> String {
         match self {
             Token::KwFolder => "keyword 'folder'".to_string(),
             Token::KwRule => "keyword 'rule'".to_string(),
@@ -107,6 +108,7 @@ impl Token {
     }
 }
 
+/// Prints the error to stdout using [ariadne]
 fn handle_error(file: &File, span: &Span) {
     Report::build(ReportKind::Error, (&file.file_name, span.clone()))
         .with_message("Syntax error.".to_string())
@@ -120,6 +122,11 @@ fn handle_error(file: &File, span: &Span) {
         .unwrap();
 }
 
+/// Lexes the [File] given. Upon syntax error, it returns an [Err] and prints out the errors to
+/// stdout using [ariadne]. Upon success, it returns a vector of tokens and their corresponding
+/// spans.
+///
+/// `file`: the [File] to be processed.
 pub fn process_tokens(file: &File) -> anyhow::Result<Vec<(Token, Span)>> {
     let tokens = Token::lexer(&file.contents).spanned();
 
