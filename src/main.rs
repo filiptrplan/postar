@@ -31,8 +31,7 @@ fn main() {
         let res = string_matcher().parse(&only_tokens);
         dbg!(
             res.errors()
-                .map(|err| err.to_lexer_span(&only_spans))
-                .collect::<Vec<_>>()
+                .for_each(|err| err.print_error(&file, &only_spans)),
         );
     }
 }

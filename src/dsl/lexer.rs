@@ -73,6 +73,40 @@ pub enum Token {
     Colon,
 }
 
+impl Token {
+    pub fn to_err_string(&self) -> String {
+        match self {
+            Token::KwFolder => "keyword 'folder'".to_string(),
+            Token::KwRule => "keyword 'rule'".to_string(),
+            Token::KwName => "keyword 'name'".to_string(),
+            Token::KwMatcher => "keyword 'matcher'".to_string(),
+            Token::KwAction => "keyword 'action'".to_string(),
+            Token::KwAnd => "keyword 'and'".to_string(),
+            Token::KwOr => "keyword 'or'".to_string(),
+            Token::KwNot => "keyword 'not'".to_string(),
+            Token::KwSubject => "keyword 'subject'".to_string(),
+            Token::KwTo => "keyword 'to'".to_string(),
+            Token::KwFrom => "keyword 'from'".to_string(),
+            Token::KwBody => "keyword 'body'".to_string(),
+            Token::KwStartsWith => "keyword 'startswith'".to_string(),
+            Token::KwContains => "keyword 'contains'".to_string(),
+            Token::KwEquals => "keyword 'equals'".to_string(),
+            Token::KwRegex => "keyword 'regex'".to_string(),
+            Token::KwDelete => "keyword 'delete'".to_string(),
+            Token::KwMoveTo => "keyword 'moveto'".to_string(),
+            Token::Ident(s) => format!("identifier '{}'", s),
+            Token::Str(s) => format!("string \"{}\"", s),
+            Token::LBrace => "'{'".to_string(),
+            Token::RBrace => "'}'".to_string(),
+            Token::LBracket => "'['".to_string(),
+            Token::RBracket => "']'".to_string(),
+            Token::LParen => "'('".to_string(),
+            Token::RParen => "')'".to_string(),
+            Token::Colon => "':'".to_string(),
+        }
+    }
+}
+
 fn handle_error(file: &File, span: &Span) {
     Report::build(ReportKind::Error, (&file.file_name, span.clone()))
         .with_message("Syntax error.".to_string())

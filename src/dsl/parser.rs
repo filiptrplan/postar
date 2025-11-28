@@ -5,10 +5,9 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, Parser,
     extra::{self},
-    prelude::{any, choice, just, todo},
+    prelude::{any, choice, just},
     span::SimpleSpan,
 };
-use mail_send::mail_auth::report;
 
 type Span = SimpleSpan<usize>;
 type TokenInput<'a> = &'a [Token];
@@ -73,12 +72,18 @@ impl ParserError<'_> {
             } => {
                 let expected_str = expected
                     .iter()
-                    .map(|e| format!("{:?}", e))
+                    .map(|e| match e {
+                        DefaultExpected::Token(token) => token.to_err_string(),
+                        DefaultExpected::Any => "any token".to_string(),
+                        DefaultExpected::SomethingElse => "something else".to_string(),
+                        DefaultExpected::EndOfInput => "EOF".to_string(),
+                        _ => "unknown".to_string(),
+                    })
                     .collect::<Vec<_>>()
                     .join(" or ");
                 let found_str = found
                     .as_ref()
-                    .map(|f| format!("{:?}", f))
+                    .map(|f| f.to_err_string())
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
@@ -97,7 +102,7 @@ impl ParserError<'_> {
         }
     }
 
-    fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
+    pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
         let span = self.to_lexer_span(lexer_spans);
         let file_span = (&file.file_name, span);
         let mut report_builder = Report::build(ReportKind::Error, file_span.clone())
