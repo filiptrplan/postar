@@ -5,21 +5,21 @@ use test_log::test;
 #[test]
 fn test_string_basic() {
     let mut lex = Token::lexer(r#""hello""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"hello\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("hello".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""world""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"world\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("world".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello world\"".to_string())))
+        Some(Ok(Token::Str("hello world".to_string())))
     );
     assert_eq!(lex.next(), None);
 }
@@ -29,56 +29,56 @@ fn test_string_escape_sequences() {
     let mut lex = Token::lexer(r#""hello\"world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\\"world\"".to_string())))
+        Some(Ok(Token::Str("hello\\\"world".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\\world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\\\world\"".to_string())))
+        Some(Ok(Token::Str("hello\\\\world".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\/world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\/world\"".to_string())))
+        Some(Ok(Token::Str("hello\\/world".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\bworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\bworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\bworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\fworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\fworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\fworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\nworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\nworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\nworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\rworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\rworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\rworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\tworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\tworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\tworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 }
@@ -88,28 +88,28 @@ fn test_string_unicode_escapes() {
     let mut lex = Token::lexer(r#""hello\u0000world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\u0000world\"".to_string())))
+        Some(Ok(Token::Str("hello\\u0000world".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\u1234world""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\u1234world\"".to_string())))
+        Some(Ok(Token::Str("hello\\u1234world".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\uabcdworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\uabcdworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\uabcdworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello\uABCDworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\uABCDworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\uABCDworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 }
@@ -119,14 +119,14 @@ fn test_string_mixed_escapes() {
     let mut lex = Token::lexer(r#""hello\nworld""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"hello\\nworld\"".to_string())))
+        Some(Ok(Token::Str("hello\\nworld".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""path\\to\\file""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"path\\\\to\\\\file\"".to_string())))
+        Some(Ok(Token::Str("path\\\\to\\\\file".to_string())))
     );
     assert_eq!(lex.next(), None);
 }
@@ -136,39 +136,39 @@ fn test_string_real_world_examples() {
     let mut lex = Token::lexer(r#""INBOX.tests1""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"INBOX.tests1\"".to_string())))
+        Some(Ok(Token::Str("INBOX.tests1".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""Sent Items""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"Sent Items\"".to_string())))
+        Some(Ok(Token::Str("Sent Items".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""test@example.com""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"test@example.com\"".to_string())))
+        Some(Ok(Token::Str("test@example.com".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""RE: ""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"RE: \"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("RE: ".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""[TEST] Important""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"[TEST] Important\"".to_string())))
+        Some(Ok(Token::Str("[TEST] Important".to_string())))
     );
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""Meeting at 3pm""#);
     assert_eq!(
         lex.next(),
-        Some(Ok(Token::Str("\"Meeting at 3pm\"".to_string())))
+        Some(Ok(Token::Str("Meeting at 3pm".to_string())))
     );
     assert_eq!(lex.next(), None);
 }
@@ -181,7 +181,7 @@ fn test_string_invalid_cases() {
 
     // Unescaped quote
     let mut lex = Token::lexer(r#""hello"world""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"hello\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("hello".to_string()))));
     assert_eq!(lex.next(), Some(Ok(Token::Ident("world".to_string()))));
 
     // Invalid unicode - non-hex digit
@@ -200,8 +200,8 @@ fn test_string_invalid_cases() {
 #[test]
 fn test_string_multiple_tokens() {
     let mut lex = Token::lexer(r#""hello" "world""#);
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"hello\"".to_string()))));
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"world\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("hello".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("world".to_string()))));
     assert_eq!(lex.next(), None);
 }
 
@@ -726,7 +726,7 @@ fn test_whitespace_real_dsl_formatting() {
     assert_eq!(lex.next(), Some(Ok(Token::LBrace)));
     assert_eq!(lex.next(), Some(Ok(Token::KwName)));
     assert_eq!(lex.next(), Some(Ok(Token::Colon)));
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"test\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("test".to_string()))));
     assert_eq!(lex.next(), Some(Ok(Token::RBrace)));
     assert_eq!(lex.next(), None);
 
@@ -740,12 +740,12 @@ fn test_whitespace_real_dsl_formatting() {
     assert_eq!(lex.next(), Some(Ok(Token::LBracket)));
     assert_eq!(lex.next(), Some(Ok(Token::KwSubject)));
     assert_eq!(lex.next(), Some(Ok(Token::KwContains)));
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"HI\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("HI".to_string()))));
     assert_eq!(lex.next(), Some(Ok(Token::KwOr)));
     assert_eq!(lex.next(), Some(Ok(Token::LBracket)));
     assert_eq!(lex.next(), Some(Ok(Token::KwTo)));
     assert_eq!(lex.next(), Some(Ok(Token::KwStartsWith)));
-    assert_eq!(lex.next(), Some(Ok(Token::Str("\"MyName\"".to_string()))));
+    assert_eq!(lex.next(), Some(Ok(Token::Str("MyName".to_string()))));
     assert_eq!(lex.next(), Some(Ok(Token::RBracket)));
     assert_eq!(lex.next(), Some(Ok(Token::RBracket)));
     assert_eq!(lex.next(), None);
