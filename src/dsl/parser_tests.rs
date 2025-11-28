@@ -1,4 +1,12 @@
-use crate::dsl::{ast::ParserStringMatcher, parser::tokenize};
+use crate::dsl::{ast::ParserStringMatcher, lexer::Token, File};
+
+fn tokenize(input: &str) -> Vec<(Token, logos::Span)> {
+    let file = File {
+        file_name: "test".to_string(),
+        contents: input.to_string(),
+    };
+    crate::dsl::lexer::process_tokens(&file).unwrap()
+}
 
 #[test_log::test]
 fn test_string_matcher_tokenization() {

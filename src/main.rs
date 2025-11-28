@@ -26,9 +26,7 @@ fn main() {
 
     let tokens = process_tokens(&file);
 
-    dbg!(tokens);
-
-    // let tokens = tokenize(&std::fs::read_to_string(args.config).unwrap());
-    //
-    // println!("{:?}", string_matcher().parse(&tokens));
+    if let Ok(tokens) = tokens {
+        dbg!(string_matcher().parse(&tokens));
+    }
 }

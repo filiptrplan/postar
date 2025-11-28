@@ -53,7 +53,7 @@ pub enum Token {
     // Ident and string
     #[regex(r"[a-z][a-z0-9_]*", |lex| lex.slice().to_owned())]
     Ident(String),
-    #[regex(r#""([^"\\\x00-\x1f]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))*""#, |lex| lex.slice().to_owned())]
+    #[regex(r#""([^"\\\x00-\x1f]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))*""#, |lex| lex.slice()[1..lex.slice().len()-1].to_owned())]
     Str(String),
 
     // Symbols
