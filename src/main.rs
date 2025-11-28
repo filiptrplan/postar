@@ -27,6 +27,12 @@ fn main() {
     let tokens = process_tokens(&file);
 
     if let Ok(tokens) = tokens {
-        dbg!(string_matcher().parse(&tokens));
+        let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
+        let res = string_matcher().parse(&only_tokens);
+        dbg!(
+            res.errors()
+                .map(|err| err.to_lexer_span(&only_spans))
+                .collect::<Vec<_>>()
+        );
     }
 }
