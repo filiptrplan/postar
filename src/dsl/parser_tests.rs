@@ -1,66 +1,187 @@
-use crate::dsl::{ast::ParserStringMatcher, lexer::Token, File};
+use crate::dsl::{ast::ParserStringMatcher, lexer::Token, parser::string_matcher};
+use chumsky::Parser;
+use test_log::test;
 
-fn tokenize(input: &str) -> Vec<(Token, logos::Span)> {
-    let file = File {
-        file_name: "test".to_string(),
-        contents: input.to_string(),
-    };
-    crate::dsl::lexer::process_tokens(&file).unwrap()
+#[test]
+fn test_string_matcher_contains_behavior() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::Str("hello".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Contains("hello".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization() {
-    let input = tokenize(r#"contains "test""#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwContains));
-    assert!(matches!(input[1].0, crate::dsl::lexer::Token::Str(_)));
+#[test]
+fn test_string_matcher_starts_with_behavior() {
+    let tokens = vec![
+        Token::KwStartsWith,
+        Token::Str("prefix".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::StartsWith("prefix".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization_startswith() {
-    let input = tokenize(r#"startswith "prefix""#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwStartsWith));
-    assert!(matches!(input[1].0, crate::dsl::lexer::Token::Str(_)));
+#[test]
+fn test_string_matcher_equals_behavior() {
+    let tokens = vec![
+        Token::KwEquals,
+        Token::Str("exact".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Equals("exact".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization_equals() {
-    let input = tokenize(r#"equals "exact""#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwEquals));
-    assert!(matches!(input[1].0, crate::dsl::lexer::Token::Str(_)));
+#[test]
+fn test_string_matcher_regex_behavior() {
+    let tokens = vec![
+        Token::KwRegex,
+        Token::Str(".*pattern.*".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Regex(".*pattern.*".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization_regex() {
-    let input = tokenize(r#"regex "pattern.*""#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwRegex));
-    assert!(matches!(input[1].0, crate::dsl::lexer::Token::Str(_)));
+#[test]
+fn test_string_matcher_empty_string() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::Str("".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Contains("".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization_empty_string() {
-    let input = tokenize(r#"contains """#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwContains));
-    if let crate::dsl::lexer::Token::Str(s) = &input[1].0 {
-        assert_eq!(s, r#""""#);
-    } else {
-        panic!("Expected Str token");
-    }
+#[test]
+fn test_string_matcher_special_characters() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::Str("hello@world.com".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Contains("hello@world.com".to_string())));
 }
 
-#[test_log::test]
-fn test_string_matcher_tokenization_special_characters() {
-    let input = tokenize(r#"contains "hello\nworld\t!@#$%^&*()""#);
-    assert_eq!(input.len(), 2);
-    assert!(matches!(input[0].0, crate::dsl::lexer::Token::KwContains));
-    if let crate::dsl::lexer::Token::Str(s) = &input[1].0 {
-        assert_eq!(s, r#""hello\nworld\t!@#$%^&*()""#);
-    } else {
-        panic!("Expected Str token");
-    }
+#[test]
+fn test_string_matcher_missing_string_after_contains() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::KwAnd,
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
 }
 
+#[test]
+fn test_string_matcher_missing_string_after_starts_with() {
+    let tokens = vec![
+        Token::KwStartsWith,
+        Token::KwOr,
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_missing_string_after_equals() {
+    let tokens = vec![
+        Token::KwEquals,
+        Token::LBrace,
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_missing_string_after_regex() {
+    let tokens = vec![
+        Token::KwRegex,
+        Token::Ident("invalid".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_empty_input() {
+    let tokens: Vec<Token> = vec![];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_invalid_first_token() {
+    let tokens = vec![
+        Token::Ident("invalid".to_string()),
+        Token::Str("test".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_only_keyword_no_string() {
+    let tokens = vec![
+        Token::KwContains,
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_string_matcher_with_newline_in_string() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::Str("line1\nline2".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Contains("line1\nline2".to_string())));
+}
+
+#[test]
+fn test_string_matcher_with_quotes_in_string() {
+    let tokens = vec![
+        Token::KwContains,
+        Token::Str("say \"hello\" world".to_string()),
+    ];
+    
+    let result = string_matcher().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserStringMatcher::Contains("say \"hello\" world".to_string())));
+}
