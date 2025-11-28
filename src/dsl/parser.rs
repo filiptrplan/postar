@@ -5,7 +5,7 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{any, choice, just},
+    prelude::{any, choice, just, recursive},
     span::SimpleSpan,
 };
 
@@ -19,7 +19,7 @@ pub enum ParserError<'a> {
     ExpectedStringAfterStringMatcher(Span),
     ExpectedStringMatcherKeyword(Span),
     ExpectedStringMatcherAfterKeyword(Span),
-    MatchListAfterLogicalOperator(Span)
+    MatchListAfterLogicalOperator(Span),
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -32,6 +32,8 @@ impl ParserError<'_> {
         match self {
             ParserError::ExpectedStringAfterStringMatcher(span) => *span,
             ParserError::ExpectedStringMatcherKeyword(span) => *span,
+            ParserError::ExpectedStringMatcherAfterKeyword(span) => *span,
+            ParserError::MatchListAfterLogicalOperator(span) => *span,
             ParserError::ExpectedFound { span, .. } => *span,
         }
     }
@@ -70,6 +72,12 @@ impl ParserError<'_> {
             ParserError::ExpectedStringMatcherKeyword(_) => {
                 "Expected string matcher keyword".to_string()
             }
+            ParserError::ExpectedStringMatcherAfterKeyword(_) => {
+                "Expected string matcher after keyword".to_string()
+            }
+            ParserError::MatchListAfterLogicalOperator(_) => {
+                "Expected match list after logical operator".to_string()
+            }
             ParserError::ExpectedFound {
                 expected, found, ..
             } => {
@@ -100,6 +108,12 @@ impl ParserError<'_> {
             ),
             ParserError::ExpectedStringMatcherKeyword(_) => {
                 Some("Valid string matchers are: contains, starts_with, equals, regex".to_string())
+            }
+            ParserError::ExpectedStringMatcherAfterKeyword(_) => {
+                Some("Keywords like 'subject', 'from', 'to', 'body' must be followed by a string matcher".to_string())
+            }
+            ParserError::MatchListAfterLogicalOperator(_) => {
+                Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string())
             }
             ParserError::ExpectedFound { .. } => None,
         }
@@ -191,8 +205,10 @@ pub fn string_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserStringMatch
 /// ```ebnf
 /// match_list    = '[', { matcher }, ']' ;
 /// ```
-pub fn match_list<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatchList, TokenErr<'a>> {
-    matcher()
+pub fn match_list<'a>(
+    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, ParserMatchList, TokenErr<'a>> {
+    matcher_rec
         .repeated()
         .collect()
         .delimited_by(just(Token::LBracket), just(Token::RBracket))
@@ -202,34 +218,40 @@ pub fn match_list<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatchList, Toke
 /// ```ebnf
 /// and_matcher   = 'and', match_list | or_matcher ;
 /// ```
-pub fn and_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+pub fn and_matcher<'a>(
+    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
     (just(Token::KwAnd)
-        .ignore_then(match_list())
+        .ignore_then(match_list(matcher_rec))
         .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
-        .map(|match_list| ParserMatcher::And(match_list)))
-    .or(or_matcher())
+        .map(ParserMatcher::And))
+    .or(or_matcher(matcher_rec))
 }
 
 /// ```ebnf
 /// or_matcher    = 'or',  match_list | not_matcher ;
 /// ```
-pub fn or_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+pub fn or_matcher<'a>(
+    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
     (just(Token::KwOr)
-        .ignore_then(match_list())
+        .ignore_then(match_list(matcher_rec))
         .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
-        .map(|match_list| ParserMatcher::Or(match_list)))
-    .or(not_matcher())
+        .map(ParserMatcher::Or))
+    .or(not_matcher(matcher_rec))
 }
 
 pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    and_matcher()
+    recursive(|matcher_rec| and_matcher(&matcher_rec))
 }
 
 /// ```ebnf
 /// not_matcher   = 'not', msg_matcher | msg_matcher ;
 /// ```
-pub fn not_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    (just(Token::KwNot).ignore_then(msg_matcher())).or(msg_matcher())
+pub fn not_matcher<'a>(
+    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    (just(Token::KwNot).ignore_then(msg_matcher(matcher_rec))).or(msg_matcher(matcher_rec))
 }
 
 /// ```ebnf
@@ -239,7 +261,9 @@ pub fn not_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, Token
 ///               | 'body',    string_matcher
 ///               | '(', matcher, ')' ;
 /// ```
-pub fn msg_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+pub fn msg_matcher<'a>(
+    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
     let matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(
             string_matcher()
@@ -251,6 +275,6 @@ pub fn msg_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, Token
         matcher_keyword(Token::KwFrom).map(ParserMatcher::From),
         matcher_keyword(Token::KwTo).map(ParserMatcher::To),
         matcher_keyword(Token::KwBody).map(ParserMatcher::Body),
-        matcher().delimited_by(just(Token::LParen), just(Token::RParen)),
+        matcher_rec.delimited_by(just(Token::LParen), just(Token::RParen)),
     ))
 }
