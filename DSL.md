@@ -56,7 +56,7 @@ rule_pair     = 'matcher', ':', matcher
 matcher       = and_matcher ;
 and_matcher   = 'and', match_list | or_matcher ;
 or_matcher    = 'or',  match_list | not_matcher ;
-not_matcher   = 'not', matcher | msg_matcher ;
+not_matcher   = 'not', msg_matcher | msg_matcher ;
 msg_matcher   = 'subject', string_matcher
               | 'from',    string_matcher
               | 'to',      string_matcher

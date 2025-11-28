@@ -1,10 +1,9 @@
-/// This module handles transforming tokens to the AST.
 use std::ops::Range;
 
 use crate::dsl::{File, ast::*, lexer::Token};
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
-    DefaultExpected, Parser,
+    DefaultExpected, IterParser, Parser,
     extra::{self},
     prelude::{any, choice, just},
     span::SimpleSpan,
@@ -19,6 +18,8 @@ type TokenErr<'a> = extra::Err<ParserError<'a>>;
 pub enum ParserError<'a> {
     ExpectedStringAfterStringMatcher(Span),
     ExpectedStringMatcherKeyword(Span),
+    ExpectedStringMatcherAfterKeyword(Span),
+    MatchListAfterLogicalOperator(Span)
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -163,7 +164,6 @@ impl<'a> chumsky::label::LabelError<'a, TokenInput<'a>, DefaultExpected<'a, Toke
     }
 }
 
-/// Matches the rule
 /// ```ebnf
 /// string_matcher
 ///               = 'contains',  string
@@ -185,5 +185,72 @@ pub fn string_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserStringMatch
         str_matcher_keyword(Token::KwStartsWith).map(ParserStringMatcher::StartsWith),
         str_matcher_keyword(Token::KwEquals).map(ParserStringMatcher::Equals),
         str_matcher_keyword(Token::KwRegex).map(ParserStringMatcher::Regex),
+    ))
+}
+
+/// ```ebnf
+/// match_list    = '[', { matcher }, ']' ;
+/// ```
+pub fn match_list<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatchList, TokenErr<'a>> {
+    matcher()
+        .repeated()
+        .collect()
+        .delimited_by(just(Token::LBracket), just(Token::RBracket))
+        .map(|matchers| ParserMatchList { list: matchers })
+}
+
+/// ```ebnf
+/// and_matcher   = 'and', match_list | or_matcher ;
+/// ```
+pub fn and_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    (just(Token::KwAnd)
+        .ignore_then(match_list())
+        .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+        .map(|match_list| ParserMatcher::And(match_list)))
+    .or(or_matcher())
+}
+
+/// ```ebnf
+/// or_matcher    = 'or',  match_list | not_matcher ;
+/// ```
+pub fn or_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    (just(Token::KwOr)
+        .ignore_then(match_list())
+        .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+        .map(|match_list| ParserMatcher::Or(match_list)))
+    .or(not_matcher())
+}
+
+pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    and_matcher()
+}
+
+/// ```ebnf
+/// not_matcher   = 'not', msg_matcher | msg_matcher ;
+/// ```
+pub fn not_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    (just(Token::KwNot).ignore_then(msg_matcher())).or(msg_matcher())
+}
+
+/// ```ebnf
+/// msg_matcher   = 'subject', string_matcher
+///               | 'from',    string_matcher
+///               | 'to',      string_matcher
+///               | 'body',    string_matcher
+///               | '(', matcher, ')' ;
+/// ```
+pub fn msg_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    let matcher_keyword = |keyword: Token| {
+        just(keyword).ignore_then(
+            string_matcher()
+                .map_err(|err| ParserError::ExpectedStringMatcherAfterKeyword(err.span())),
+        )
+    };
+    choice((
+        matcher_keyword(Token::KwSubject).map(ParserMatcher::Subject),
+        matcher_keyword(Token::KwFrom).map(ParserMatcher::From),
+        matcher_keyword(Token::KwTo).map(ParserMatcher::To),
+        matcher_keyword(Token::KwBody).map(ParserMatcher::Body),
+        matcher().delimited_by(just(Token::LParen), just(Token::RParen)),
     ))
 }

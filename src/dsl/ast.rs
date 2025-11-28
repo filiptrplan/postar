@@ -36,7 +36,7 @@ pub enum ParserStringMatcher {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParserMatchList {
-    list: Vec<ParserMatcher>,
+    pub list: Vec<ParserMatcher>,
 }
 
 /// Maps to [crate::process::Action]
