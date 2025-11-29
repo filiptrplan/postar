@@ -1,11 +1,11 @@
 use std::ops::Range;
 
 use crate::dsl::{File, ast::*, lexer::Token};
-use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
+use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{Recursive, any, choice, empty, just, none_of, via_parser},
+    prelude::{Recursive, any, choice, just, none_of, via_parser},
     span::{SimpleSpan, Span as _},
     util::Maybe,
 };

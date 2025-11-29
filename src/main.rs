@@ -3,7 +3,7 @@ use logos::Span;
 use postar::dsl::{
     File,
     lexer::{Token, process_tokens},
-    parser::{action, folder, matcher, rule},
+    parser::rule,
 };
 
 #[derive(clap::Parser)]
