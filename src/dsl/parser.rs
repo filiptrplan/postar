@@ -5,7 +5,7 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{any, choice, just, recursive},
+    prelude::{Recursive, any, choice, just, recursive},
     span::SimpleSpan,
 };
 
@@ -185,7 +185,8 @@ impl<'a> chumsky::label::LabelError<'a, TokenInput<'a>, DefaultExpected<'a, Toke
 ///               | 'equals',     string
 ///               | 'regex',      string ;
 /// ```
-pub fn string_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserStringMatcher, TokenErr<'a>> {
+pub fn string_matcher<'a>()
+-> impl Parser<'a, TokenInput<'a>, ParserStringMatcher, TokenErr<'a>> + Clone {
     let str_matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(any().try_map(|token, span| {
             Ok(match token {
@@ -203,78 +204,78 @@ pub fn string_matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserStringMatch
 }
 
 /// ```ebnf
-/// match_list    = '[', { matcher }, ']' ;
-/// ```
-pub fn match_list<'a>(
-    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, ParserMatchList, TokenErr<'a>> {
-    matcher_rec
-        .repeated()
-        .collect()
-        .delimited_by(just(Token::LBracket), just(Token::RBracket))
-        .map(|matchers| ParserMatchList { list: matchers })
-}
-
-/// ```ebnf
+/// matcher       = and_matcher ;
 /// and_matcher   = 'and', match_list | or_matcher ;
-/// ```
-pub fn and_matcher<'a>(
-    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    (just(Token::KwAnd)
-        .ignore_then(match_list(matcher_rec))
-        .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
-        .map(ParserMatcher::And))
-    .or(or_matcher(matcher_rec))
-}
-
-/// ```ebnf
 /// or_matcher    = 'or',  match_list | not_matcher ;
-/// ```
-pub fn or_matcher<'a>(
-    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    (just(Token::KwOr)
-        .ignore_then(match_list(matcher_rec))
-        .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
-        .map(ParserMatcher::Or))
-    .or(not_matcher(matcher_rec))
-}
-
-pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    recursive(|matcher_rec| and_matcher(&matcher_rec))
-}
-
-/// ```ebnf
 /// not_matcher   = 'not', msg_matcher | msg_matcher ;
-/// ```
-pub fn not_matcher<'a>(
-    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
-    (just(Token::KwNot).ignore_then(msg_matcher(matcher_rec))).or(msg_matcher(matcher_rec))
-}
-
-/// ```ebnf
 /// msg_matcher   = 'subject', string_matcher
 ///               | 'from',    string_matcher
 ///               | 'to',      string_matcher
 ///               | 'body',    string_matcher
 ///               | '(', matcher, ')' ;
+///
+/// string_matcher
+///               = 'contains',  string
+///               | 'startswith', string
+///               | 'equals',     string
+///               | 'regex',      string ;
+///
+/// match_list    = '[', { matcher }, ']' ;
 /// ```
-pub fn msg_matcher<'a>(
-    matcher_rec: &impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+    let mut matcher_rec = Recursive::declare();
+    let mut and_matcher = Recursive::declare();
+    let mut or_matcher = Recursive::declare();
+    let mut not_matcher = Recursive::declare();
+    let mut match_list = Recursive::declare();
+    let mut msg_matcher = Recursive::declare();
+
     let matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(
             string_matcher()
                 .map_err(|err| ParserError::ExpectedStringMatcherAfterKeyword(err.span())),
         )
     };
-    choice((
+
+    matcher_rec.define(and_matcher.clone());
+
+    and_matcher.define(
+        (just::<_, _, TokenErr<'a>>(Token::KwAnd)
+            .ignore_then(match_list.clone())
+            .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+            .map(ParserMatcher::And))
+        .or(or_matcher.clone()),
+    );
+
+    or_matcher.define(
+        (just(Token::KwOr)
+            .ignore_then(match_list.clone())
+            .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+            .map(ParserMatcher::Or))
+        .or(not_matcher.clone()),
+    );
+
+    not_matcher
+        .define((just(Token::KwNot).ignore_then(msg_matcher.clone())).or(msg_matcher.clone()));
+
+    msg_matcher.define(choice((
         matcher_keyword(Token::KwSubject).map(ParserMatcher::Subject),
         matcher_keyword(Token::KwFrom).map(ParserMatcher::From),
         matcher_keyword(Token::KwTo).map(ParserMatcher::To),
         matcher_keyword(Token::KwBody).map(ParserMatcher::Body),
-        matcher_rec.delimited_by(just(Token::LParen), just(Token::RParen)),
-    ))
+        matcher_rec
+            .clone()
+            .delimited_by(just(Token::LParen), just(Token::RParen)),
+    )));
+
+    match_list.define(
+        matcher_rec
+            .clone()
+            .repeated()
+            .collect()
+            .delimited_by(just(Token::LBracket), just(Token::RBracket))
+            .map(|matchers| ParserMatchList { list: matchers }),
+    );
+
+    matcher_rec
 }

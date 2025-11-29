@@ -33,5 +33,6 @@ fn main() {
             res.errors()
                 .for_each(|err| err.print_error(&file, &only_spans)),
         );
+        dbg!(res);
     }
 }
