@@ -1,4 +1,4 @@
-use crate::dsl::{ast::*, lexer::{Token, process_tokens}, parser::{string_matcher, matcher, action}};
+use crate::dsl::{ast::*, lexer::{Token, process_tokens}, parser::{string_matcher, matcher, action, rule}};
 use chumsky::Parser;
 use test_log::test;
 
@@ -612,4 +612,306 @@ fn test_action_uppercase_identifier() {
     assert!(result.has_output());
     assert!(!result.has_errors());
     assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "inbox".to_string() })));
+}
+
+// Rule parser tests
+
+#[test]
+fn test_rule_simple_delete() {
+    let tokens = tokenize_text("rule test_rule { matcher: subject contains \"spam\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "test_rule".to_string(),
+        matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("spam".to_string())),
+        action: ParserAction::Delete,
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_simple_moveto() {
+    let tokens = tokenize_text("rule important_emails { matcher: from equals \"boss@company.com\" action: moveto [ urgent ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "important_emails".to_string(),
+        matcher: ParserMatcher::From(ParserStringMatcher::Equals("boss@company.com".to_string())),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "urgent".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_complex_matcher() {
+    let tokens = tokenize_text("rule complex_filter { matcher: and [ subject contains \"urgent\" or [ from equals \"admin@company.com\" to equals \"team@company.com\" ] ] action: moveto [ priority ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "complex_filter".to_string(),
+        matcher: ParserMatcher::And(ParserMatchList {
+            list: vec![
+                ParserMatcher::Subject(ParserStringMatcher::Contains("urgent".to_string())),
+                ParserMatcher::Or(ParserMatchList {
+                    list: vec![
+                        ParserMatcher::From(ParserStringMatcher::Equals("admin@company.com".to_string())),
+                        ParserMatcher::To(ParserStringMatcher::Equals("team@company.com".to_string())),
+                    ],
+                }),
+            ],
+        }),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "priority".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_with_regex_matcher() {
+    let tokens = tokenize_text("rule regex_filter { matcher: body regex \".*date.*\" action: moveto [ dates ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "regex_filter".to_string(),
+        matcher: ParserMatcher::Body(ParserStringMatcher::Regex(".*date.*".to_string())),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "dates".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_with_nested_parentheses() {
+    let tokens = tokenize_text("rule nested_test { matcher: and [ ( subject contains \"test\" ) from equals \"user@example.com\" ] action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "nested_test".to_string(),
+        matcher: ParserMatcher::And(ParserMatchList {
+            list: vec![
+                ParserMatcher::Subject(ParserStringMatcher::Contains("test".to_string())),
+                ParserMatcher::From(ParserStringMatcher::Equals("user@example.com".to_string())),
+            ],
+        }),
+        action: ParserAction::Delete,
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_action_first_matcher_second() {
+    let tokens = tokenize_text("rule reverse_order { action: moveto [ archive ] matcher: to contains \"old\" }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "reverse_order".to_string(),
+        matcher: ParserMatcher::To(ParserStringMatcher::Contains("old".to_string())),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "archive".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_with_whitespace_and_newlines() {
+    let tokens = tokenize_text("rule spaced_rule { matcher: subject contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "spaced_rule".to_string(),
+        matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("test".to_string())),
+        action: ParserAction::Delete,
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+// Error cases for rule parser
+
+#[test]
+fn test_rule_missing_name() {
+    let tokens = tokenize_text("rule { matcher: subject contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+
+
+#[test]
+fn test_rule_missing_matcher() {
+    let tokens = tokenize_text("rule no_matcher { action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_missing_action() {
+    let tokens = tokenize_text("rule no_action { matcher: subject contains \"test\" }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_duplicate_matcher() {
+    let tokens = tokenize_text("rule duplicate_matcher { matcher: subject contains \"test\" matcher: from equals \"user@example.com\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_duplicate_action() {
+    let tokens = tokenize_text("rule duplicate_action { matcher: subject contains \"test\" action: delete action: moveto [ archive ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_missing_opening_brace() {
+    let tokens = tokenize_text("rule missing_brace matcher: subject contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_missing_closing_brace() {
+    let tokens = tokenize_text("rule missing_brace { matcher: subject contains \"test\" action: delete");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_missing_colon_after_matcher() {
+    let tokens = tokenize_text("rule missing_colon { matcher subject contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_missing_colon_after_action() {
+    let tokens = tokenize_text("rule missing_colon { matcher: subject contains \"test\" action delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_invalid_matcher_content() {
+    let tokens = tokenize_text("rule invalid_matcher { matcher: invalid contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_invalid_action_content() {
+    let tokens = tokenize_text("rule invalid_action { matcher: subject contains \"test\" action: invalid }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_empty_input() {
+    let tokens = tokenize_text("");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_only_rule_keyword() {
+    let tokens = tokenize_text("rule");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_empty_braces() {
+    let tokens = tokenize_text("rule empty { }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_with_invalid_keyword() {
+    let tokens = tokenize_text("rule invalid { invalid: subject contains \"test\" action: delete }");
+    
+    let result = rule().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_rule_complex_nested_structure() {
+    let tokens = tokenize_text("rule very_complex { matcher: and [ or [ subject contains \"urgent\" body contains \"important\" ] from equals \"spam@example.com\" to startswith \"team\" ] action: moveto [ complex_folder ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "very_complex".to_string(),
+        matcher: ParserMatcher::And(ParserMatchList {
+            list: vec![
+                ParserMatcher::Or(ParserMatchList {
+                    list: vec![
+                        ParserMatcher::Subject(ParserStringMatcher::Contains("urgent".to_string())),
+                        ParserMatcher::Body(ParserStringMatcher::Contains("important".to_string())),
+                    ],
+                }),
+                ParserMatcher::From(ParserStringMatcher::Equals("spam@example.com".to_string())),
+                ParserMatcher::To(ParserStringMatcher::StartsWith("team".to_string())),
+            ],
+        }),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "complex_folder".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_rule_with_special_characters_in_identifier() {
+    let tokens = tokenize_text("rule special_chars_123 { matcher: subject contains \"test\" action: moveto [ folder_name_456 ] }");
+    
+    let result = rule().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserRule {
+        name: "special_chars_123".to_string(),
+        matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("test".to_string())),
+        action: ParserAction::MoveTo(ParserIdentifier { identifier: "folder_name_456".to_string() }),
+    };
+    assert_eq!(result.into_output(), Some(expected));
 }
