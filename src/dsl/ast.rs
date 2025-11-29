@@ -1,7 +1,13 @@
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParserRoot {
+pub struct ParserConfig {
     pub folder_definitions: Vec<ParserFolder>,
     pub rule_definitions: Vec<ParserRule>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParserDefinition {
+    Rule(ParserRule),
+    Folder(ParserFolder),
 }
 
 /// Maps to [crate::process::Rule]

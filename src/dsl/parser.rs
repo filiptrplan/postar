@@ -18,6 +18,11 @@ type TokenErr<'a> = extra::Err<ParserError<'a>>;
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
 #[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
 pub enum ParserError<'a> {
+    #[strum(
+        message = "Expected a definition.",
+        detailed_message = "The top level of the configuration can only contain rule and action definitions."
+    )]
+    TopLevelDefinition(Span),
     #[strum(message = "Missing closing brace")]
     MissingClosingBrace(Span),
     #[strum(message = "A rule should have a name. Name is missing.")]
@@ -104,6 +109,7 @@ impl ParserError<'_> {
             ParserError::FolderNotNamed(simple_span) => *simple_span,
             ParserError::CombinedError(e1, e2) => e1.span().union(e2.span()),
             ParserError::MissingClosingBrace(span) => *span,
+            ParserError::TopLevelDefinition(span) => *span,
         }
     }
 
@@ -191,7 +197,12 @@ impl ParserError<'_> {
     /// in the function [process_tokens](crate::dsl::lexer::process_tokens)
     ///
     /// # Example
-    /// ```
+    /// ```ignore
+    /// use postar::dsl::{File, lexer::process_tokens, parser::string_matcher};
+    /// let file = File {
+    ///     file_name: "test".to_string(),
+    ///     contents: "contains \"test\"".to_string(),
+    /// };
     /// let tokens = process_tokens(&file);
     /// if let Ok(tokens) = tokens {
     ///     let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
@@ -542,6 +553,10 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
         })
 }
 
+/// ```ebnf
+/// folder        = 'folder', identifier, '{', { folder_pair }, '}' ;
+/// folder_pair   = 'name', ':', string ;
+/// ```
 pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a>> {
     just(Token::KwFolder)
         .ignore_then(any())
@@ -595,5 +610,45 @@ pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a
         .map(|(ident, name)| ParserFolder {
             identifier: ident,
             name,
+        })
+}
+
+pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a>> {
+    let definition = choice((
+        folder().map(ParserDefinition::Folder),
+        rule().map(ParserDefinition::Rule),
+    ))
+    .map_err(|err| {
+        dbg!(&err);
+        ParserError::TopLevelDefinition(err.span())
+        // err.replace_if_expected_found(ParserError::TopLevelDefinition(err.span()))
+    });
+
+    definition
+        .repeated()
+        .collect::<Vec<_>>()
+        .map_err(|err| {
+            dbg!(&err);
+            err
+        })
+        .map(|defs| ParserConfig {
+            folder_definitions: defs
+                .iter()
+                .filter_map(|def| match def {
+                    ParserDefinition::Folder(f) => Some(f.clone()),
+                    _ => None,
+                })
+                .collect(),
+            rule_definitions: defs
+                .iter()
+                .filter_map(|def| match def {
+                    ParserDefinition::Rule(r) => Some(r.clone()),
+                    _ => None,
+                })
+                .collect(),
+        })
+        .map_err(|err| {
+            dbg!(&err);
+            err
         })
 }

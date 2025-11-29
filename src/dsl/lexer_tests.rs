@@ -17,10 +17,7 @@ fn test_string_basic() {
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""hello world""#);
-    assert_eq!(
-        lex.next(),
-        Some(Ok(Token::Str("hello world".to_string())))
-    );
+    assert_eq!(lex.next(), Some(Ok(Token::Str("hello world".to_string()))));
     assert_eq!(lex.next(), None);
 }
 
@@ -134,17 +131,11 @@ fn test_string_mixed_escapes() {
 #[test]
 fn test_string_real_world_examples() {
     let mut lex = Token::lexer(r#""INBOX.tests1""#);
-    assert_eq!(
-        lex.next(),
-        Some(Ok(Token::Str("INBOX.tests1".to_string())))
-    );
+    assert_eq!(lex.next(), Some(Ok(Token::Str("INBOX.tests1".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""Sent Items""#);
-    assert_eq!(
-        lex.next(),
-        Some(Ok(Token::Str("Sent Items".to_string())))
-    );
+    assert_eq!(lex.next(), Some(Ok(Token::Str("Sent Items".to_string()))));
     assert_eq!(lex.next(), None);
 
     let mut lex = Token::lexer(r#""test@example.com""#);
@@ -902,4 +893,3 @@ fn test_error_positions() {
         _ => panic!("Expected error at position of @ character"),
     }
 }
-

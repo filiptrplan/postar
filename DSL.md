@@ -20,7 +20,7 @@ folder inbox { name: "INBOX" }
 
 rule simple_rule {
   matcher: subject contains "TEST"
-  action: delete []
+  action: delete
 }
 
 rule complex_rule {
