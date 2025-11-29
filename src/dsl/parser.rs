@@ -216,6 +216,26 @@ impl ParserError<'_> {
         lexer_spans: &'a [logos::Span],
     ) -> Option<Report<'a, (&'a String, Range<usize>)>> {
         match self {
+            Self::DuplicateMatcherInRule(s1, s2) => {
+                let span = self.to_lexer_span(lexer_spans);
+                let file_span = (&file.file_name, span);
+                let mut colors = ColorGenerator::new();
+                let a = colors.next();
+                let b = colors.next();
+                let report_builder = Report::build(ReportKind::Error, file_span)
+                    .with_message("A rule should have exactly one matcher. Duplicates detected")
+                    .with_label(
+                        Label::new((&file.file_name, Self::span_to_lexer_span(*s1, lexer_spans)))
+                            .with_message("First matcher found here".fg(a))
+                            .with_color(a),
+                    )
+                    .with_label(
+                        Label::new((&file.file_name, Self::span_to_lexer_span(*s2, lexer_spans)))
+                            .with_message("Second matcher found here".fg(b))
+                            .with_color(b),
+                    );
+                Some(report_builder.finish())
+            }
             Self::DuplicateActionInRule(s1, s2) => {
                 let span = self.to_lexer_span(lexer_spans);
                 let file_span = (&file.file_name, span);
