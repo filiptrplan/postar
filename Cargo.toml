@@ -17,6 +17,8 @@ mail-parser = "0.11.1"
 native-tls = "0.2.14"
 ouroboros = "0.18.5"
 regex = "1.12.2"
+strum = { version = "0.27.2", features = ["derive"] }
+strum_macros = "0.27.2"
 
 [dev-dependencies]
 mail-send = "0.5.2"

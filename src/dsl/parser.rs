@@ -5,24 +5,49 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    label::LabelError,
     prelude::{Recursive, any, choice, just},
     span::{SimpleSpan, Span as _},
 };
+use strum::EnumMessage;
 
 type Span = SimpleSpan<usize>;
 type TokenInput<'a> = &'a [Token];
 type TokenErr<'a> = extra::Err<ParserError<'a>>;
 
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
 pub enum ParserError<'a> {
+    #[strum(
+        message = "Expected string after string matcher",
+        detailed_message = "String matchers require a string argument, e.g., 'contains \"hello\"'"
+    )]
     ExpectedStringAfterStringMatcher(Span),
+    #[strum(
+        message = "Expected string matcher keyword",
+        detailed_message = "Valid string matchers are: contains, starts_with, equals, regex"
+    )]
     ExpectedStringMatcherKeyword(Span),
+    #[strum(
+        message = "Expected string matcher after keyword",
+        detailed_message = "Keywords like 'subject', 'from', 'to', 'body' must be followed by a string matcher"
+    )]
     ExpectedStringMatcherAfterKeyword(Span),
+    #[strum(
+        message = "Expected match list after logical operator",
+        detailed_message = "Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'"
+    )]
     MatchListAfterLogicalOperator(Span),
+    #[strum(message = "The argument for the moveto action should be an identifier.")]
     IdentifierMoveTo(Span),
+    #[strum(
+        message = "Invalid action",
+        detailed_message = "Valid actions are: moveto, delete"
+    )]
     InvalidAction(Span),
+    #[strum(
+        message = "Arguments should follow this action",
+        detailed_message = "Some actions require arguments, for example: `moveto [ ident ]`"
+    )]
     ArgumentsFollowAction(Span),
     ExpectedFound {
         span: Span,
@@ -86,18 +111,6 @@ impl ParserError<'_> {
     /// Returns the helper message that will be right below the error
     fn message(&self) -> String {
         match self {
-            ParserError::ExpectedStringAfterStringMatcher(_) => {
-                "Expected string after string matcher".to_string()
-            }
-            ParserError::ExpectedStringMatcherKeyword(_) => {
-                "Expected string matcher keyword".to_string()
-            }
-            ParserError::ExpectedStringMatcherAfterKeyword(_) => {
-                "Expected string matcher after keyword".to_string()
-            }
-            ParserError::MatchListAfterLogicalOperator(_) => {
-                "Expected match list after logical operator".to_string()
-            }
             ParserError::ExpectedFound {
                 expected, found, ..
             } => {
@@ -118,35 +131,15 @@ impl ParserError<'_> {
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
-            ParserError::IdentifierMoveTo(_) => {
-                "The argument for the moveto action should be an identifier.".to_string()
-            }
-            ParserError::InvalidAction(_) => "Invalid action".to_string(),
-            ParserError::ArgumentsFollowAction(_) => {
-                "Arguments should follow this action".to_string()
-            }
+            _ => self.get_message().unwrap().to_string(),
         }
     }
 
     /// Returns the note for additional clarification
     fn note(&self) -> Option<String> {
         match self {
-            ParserError::ExpectedStringAfterStringMatcher(_) => Some(
-                "String matchers require a string argument, e.g., 'contains \"hello\"'".to_string(),
-            ),
-            ParserError::ExpectedStringMatcherKeyword(_) => {
-                Some("Valid string matchers are: contains, starts_with, equals, regex".to_string())
-            }
-            ParserError::ExpectedStringMatcherAfterKeyword(_) => {
-                Some("Keywords like 'subject', 'from', 'to', 'body' must be followed by a string matcher".to_string())
-            }
-            ParserError::MatchListAfterLogicalOperator(_) => {
-                Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string())
-            }
             ParserError::ExpectedFound { .. } => None,
-            ParserError::IdentifierMoveTo(_) => None,
-            ParserError::InvalidAction(_) => Some("Valid actions are: moveto, delete".to_string()),
-            ParserError::ArgumentsFollowAction(_) => Some("Some actions require arguments, for example: `moveto [ ident ]`".to_string()),
+            _ => self.get_detailed_message().map(|s| s.to_string()),
         }
     }
 
