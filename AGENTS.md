@@ -47,6 +47,7 @@
 - Reference the `test_helpers` modules to see how to mock inboxes.
 - When asked to write tests, it is okay if they fail. Maybe the problem is in the implementation. You were asked to write the tests to discover bugs.
 - Do NOT change the implementation unless EXPLICITLY told to do so when writing tests.
+- When testing the new tests, do not run all the tests but just run the tests you wrote like `cargo test string_matcher`.
 
 ## Important files
 
