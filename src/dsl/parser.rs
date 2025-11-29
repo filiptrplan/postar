@@ -5,7 +5,7 @@ use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{Recursive, any, choice, just, none_of, via_parser},
+    prelude::{Recursive, any, choice, end, just, none_of, via_parser},
     span::{SimpleSpan, Span as _},
     util::Maybe,
 };
@@ -292,10 +292,13 @@ impl ParserError<'_> {
 
 impl<'a> chumsky::error::Error<'a, TokenInput<'a>> for ParserError<'a> {
     fn merge(self, other: Self) -> Self {
-        match self {
+        println!("Merging {:?} and {:?}", self, other);
+        let out = match self {
             ParserError::ExpectedFound { .. } => other,
             _ => self,
-        }
+        };
+        println!("output: {:?}", out);
+        out
     }
 }
 
@@ -483,74 +486,78 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
             .map(|(kwspan, x)| (ParserRuleValue::Action(x), kwspan)),
     ));
 
-    just(Token::KwRule)
-        .ignore_then(any())
-        .try_map(|tok, span| {
-            if let Token::Ident(s) = tok {
-                Ok(s)
-            } else {
-                Err(ParserError::RuleNotNamed(span))
-            }
-        })
-        // Recover to start of rule
-        .recover_with(via_parser(
-            none_of(Token::LBrace).repeated().to(String::new()),
-        ))
-        .then(
-            rule_pair.repeated().collect::<Vec<_>>().delimited_by(
-                just(Token::LBrace),
-                just(Token::RBrace)
-                    .map_err(|err: ParserError<'_>| ParserError::MissingClosingBrace(err.span())),
-            ),
-        )
-        .try_map(|(name, list), span| {
-            let matchers: Vec<_> = list
-                .iter()
-                .filter(|val| matches!(val, (ParserRuleValue::Matcher(_), _)))
-                .collect();
-            let actions: Vec<_> = list
-                .iter()
-                .filter(|val| matches!(val, (ParserRuleValue::Action(_), _)))
-                .collect();
-            if matchers.is_empty() {
-                return Err(ParserError::NoMatcherInRule(span));
-            }
-            if actions.is_empty() {
-                return Err(ParserError::NoActionInRule(span));
-            }
-            let mut matcher_err = None;
-            let mut action_err = None;
-            if matchers.len() > 1 {
-                let spans = matchers.iter().map(|(_, span)| *span).collect::<Vec<_>>();
-                matcher_err = Some(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
-            }
-            if actions.len() > 1 {
-                let spans = actions.iter().map(|(_, span)| *span).collect::<Vec<_>>();
-                action_err = Some(ParserError::DuplicateActionInRule(spans[0], spans[1]));
-            }
-            match (matcher_err, action_err) {
-                (None, Some(err)) => return Err(err),
-                (Some(err), None) => return Err(err),
-                (None, None) => (),
-                (Some(e1), Some(e2)) => {
-                    return Err(ParserError::CombinedError(Box::new(e1), Box::new(e2)));
+    // Nesting the main logic inside `ignore_then` prevents recovery
+    // from triggering if the 'rule' keyword itself is missing.
+    just(Token::KwRule).ignore_then(
+        any()
+            .try_map(|tok, span| {
+                if let Token::Ident(s) = tok {
+                    Ok(s)
+                } else {
+                    Err(ParserError::RuleNotNamed(span))
                 }
-            };
-            let matcher = match matchers[0] {
-                (ParserRuleValue::Matcher(m), _) => m.clone(),
-                _ => unreachable!(),
-            };
-            let action = match actions[0] {
-                (ParserRuleValue::Action(a), _) => a.clone(),
-                _ => unreachable!(),
-            };
-            Ok((name, matcher, action))
-        })
-        .map(|(name, matcher, action)| ParserRule {
-            name,
-            matcher,
-            action,
-        })
+            })
+            // Recovery only happens here, AFTER we know it's a rule
+            .recover_with(via_parser(
+                none_of(Token::LBrace).repeated().to(String::new()),
+            ))
+            .then(
+                rule_pair.repeated().collect::<Vec<_>>().delimited_by(
+                    just(Token::LBrace),
+                    just(Token::RBrace).map_err(|err: ParserError<'_>| {
+                        ParserError::MissingClosingBrace(err.span())
+                    }),
+                ),
+            )
+            .try_map(|(name, list), span| {
+                let matchers: Vec<_> = list
+                    .iter()
+                    .filter(|val| matches!(val, (ParserRuleValue::Matcher(_), _)))
+                    .collect();
+                let actions: Vec<_> = list
+                    .iter()
+                    .filter(|val| matches!(val, (ParserRuleValue::Action(_), _)))
+                    .collect();
+                if matchers.is_empty() {
+                    return Err(ParserError::NoMatcherInRule(span));
+                }
+                if actions.is_empty() {
+                    return Err(ParserError::NoActionInRule(span));
+                }
+                let mut matcher_err = None;
+                let mut action_err = None;
+                if matchers.len() > 1 {
+                    let spans = matchers.iter().map(|(_, span)| *span).collect::<Vec<_>>();
+                    matcher_err = Some(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
+                }
+                if actions.len() > 1 {
+                    let spans = actions.iter().map(|(_, span)| *span).collect::<Vec<_>>();
+                    action_err = Some(ParserError::DuplicateActionInRule(spans[0], spans[1]));
+                }
+                match (matcher_err, action_err) {
+                    (None, Some(err)) => return Err(err),
+                    (Some(err), None) => return Err(err),
+                    (None, None) => (),
+                    (Some(e1), Some(e2)) => {
+                        return Err(ParserError::CombinedError(Box::new(e1), Box::new(e2)));
+                    }
+                };
+                let matcher = match matchers[0] {
+                    (ParserRuleValue::Matcher(m), _) => m.clone(),
+                    _ => unreachable!(),
+                };
+                let action = match actions[0] {
+                    (ParserRuleValue::Action(a), _) => a.clone(),
+                    _ => unreachable!(),
+                };
+                Ok((name, matcher, action))
+            })
+            .map(|(name, matcher, action)| ParserRule {
+                name,
+                matcher,
+                action,
+            }),
+    )
 }
 
 /// ```ebnf
@@ -558,75 +565,75 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
 /// folder_pair   = 'name', ':', string ;
 /// ```
 pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a>> {
-    just(Token::KwFolder)
-        .ignore_then(any())
-        .try_map(|tok, span| {
-            if let Token::Ident(s) = tok {
-                Ok(s)
-            } else {
-                Err(ParserError::FolderNotNamed(span))
-            }
-        })
-        // Recover to start of rule
-        .recover_with(via_parser(
-            none_of(Token::LBrace).repeated().to(String::new()),
-        ))
-        .then(
-            just(Token::KwName)
-                .then(just(Token::Colon))
-                .ignore_then(chumsky::select! {
-                    Token::Str(s) => s
-                })
-                // We do this dance to map somethingelse to a token::str because the select
-                // doesn't know we want a token::str. This is all to get a prettier error
-                .map_err(|e| match e {
-                    ParserError::ExpectedFound {
-                        span,
-                        expected,
-                        found,
-                    } => ParserError::ExpectedFound {
-                        span,
-                        found,
-                        expected: expected
-                            .into_iter()
-                            .map(|exp| {
-                                if let DefaultExpected::SomethingElse = exp {
-                                    DefaultExpected::Token(Maybe::Val(Token::Str("".to_string())))
-                                } else {
-                                    exp
-                                }
-                            })
-                            .collect(),
-                    },
-                    e => e,
-                })
-                .delimited_by(
-                    just(Token::LBrace),
-                    just(Token::RBrace).map_err(|err: ParserError<'_>| {
-                        ParserError::MissingClosingBrace(err.span())
-                    }),
-                ),
-        )
-        .map(|(ident, name)| ParserFolder {
-            identifier: ident,
-            name,
-        })
+    just(Token::KwFolder).ignore_then(
+        any()
+            .try_map(|tok, span| {
+                if let Token::Ident(s) = tok {
+                    Ok(s)
+                } else {
+                    Err(ParserError::FolderNotNamed(span))
+                }
+            })
+            .recover_with(via_parser(
+                none_of(Token::LBrace).repeated().to(String::new()),
+            ))
+            .then(
+                just(Token::KwName)
+                    .then(just(Token::Colon))
+                    .ignore_then(chumsky::select! {
+                        Token::Str(s) => s
+                    })
+                    .map_err(|e| match e {
+                        ParserError::ExpectedFound {
+                            span,
+                            expected,
+                            found,
+                        } => ParserError::ExpectedFound {
+                            span,
+                            found,
+                            expected: expected
+                                .into_iter()
+                                .map(|exp| {
+                                    if let DefaultExpected::SomethingElse = exp {
+                                        DefaultExpected::Token(Maybe::Val(Token::Str(
+                                            "".to_string(),
+                                        )))
+                                    } else {
+                                        exp
+                                    }
+                                })
+                                .collect(),
+                        },
+                        e => e,
+                    })
+                    .delimited_by(
+                        just(Token::LBrace),
+                        just(Token::RBrace).map_err(|err: ParserError<'_>| {
+                            ParserError::MissingClosingBrace(err.span())
+                        }),
+                    ),
+            )
+            .map(|(ident, name)| ParserFolder {
+                identifier: ident,
+                name,
+            }),
+    )
 }
 
 pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a>> {
     let definition = choice((
+        any().try_map(|token, span| {
+            dbg!(token);
+            Err(ParserError::TopLevelDefinition(span))
+        }),
         folder().map(ParserDefinition::Folder),
         rule().map(ParserDefinition::Rule),
-    ))
-    .map_err(|err| {
-        dbg!(&err);
-        ParserError::TopLevelDefinition(err.span())
-        // err.replace_if_expected_found(ParserError::TopLevelDefinition(err.span()))
-    });
+    ));
 
     definition
         .repeated()
         .collect::<Vec<_>>()
+        .then_ignore(end())
         .map_err(|err| {
             dbg!(&err);
             err
