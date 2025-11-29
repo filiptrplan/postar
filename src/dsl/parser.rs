@@ -327,7 +327,9 @@ fn action_args<'a, O>(
     args: impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>>,
 ) -> impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>> {
     args.delimited_by(just(Token::LBracket), just(Token::RBracket))
-        .map_err(|err: ParserError<'_>| ParserError::ArgumentsFollowAction(err.span()))
+        .map_err_with_state(|err: ParserError<'_>, span, _| {
+            ParserError::ArgumentsFollowAction(err.span().union(span))
+        })
 }
 
 /// ```ebnf
