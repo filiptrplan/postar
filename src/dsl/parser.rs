@@ -18,6 +18,8 @@ type TokenErr<'a> = extra::Err<ParserError<'a>>;
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
 #[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
 pub enum ParserError<'a> {
+    #[strum(message = "Missing closing brace")]
+    MissingClosingBrace(Span),
     #[strum(message = "A rule should have a name. Name is missing.")]
     RuleNotNamed(Span),
     #[strum(message = "A folder should have a name. Name is missing.")]
@@ -101,6 +103,7 @@ impl ParserError<'_> {
             ParserError::RuleNotNamed(simple_span) => *simple_span,
             ParserError::FolderNotNamed(simple_span) => *simple_span,
             ParserError::CombinedError(e1, e2) => e1.span().union(e2.span()),
+            ParserError::MissingClosingBrace(span) => *span,
         }
     }
 
@@ -277,8 +280,11 @@ impl ParserError<'_> {
 }
 
 impl<'a> chumsky::error::Error<'a, TokenInput<'a>> for ParserError<'a> {
-    fn merge(self, _other: Self) -> Self {
-        self
+    fn merge(self, other: Self) -> Self {
+        match self {
+            ParserError::ExpectedFound { .. } => other,
+            _ => self,
+        }
     }
 }
 
@@ -480,10 +486,11 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
             none_of(Token::LBrace).repeated().to(String::new()),
         ))
         .then(
-            rule_pair
-                .repeated()
-                .collect::<Vec<_>>()
-                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+            rule_pair.repeated().collect::<Vec<_>>().delimited_by(
+                just(Token::LBrace),
+                just(Token::RBrace)
+                    .map_err(|err: ParserError<'_>| ParserError::MissingClosingBrace(err.span())),
+            ),
         )
         .try_map(|(name, list), span| {
             let matchers: Vec<_> = list
@@ -578,7 +585,12 @@ pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a
                     },
                     e => e,
                 })
-                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+                .delimited_by(
+                    just(Token::LBrace),
+                    just(Token::RBrace).map_err(|err: ParserError<'_>| {
+                        ParserError::MissingClosingBrace(err.span())
+                    }),
+                ),
         )
         .map(|(ident, name)| ParserFolder {
             identifier: ident,
