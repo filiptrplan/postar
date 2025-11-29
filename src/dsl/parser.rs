@@ -5,7 +5,7 @@ use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{Recursive, any, choice, just},
+    prelude::{Recursive, any, choice, empty, just, none_of, via_parser},
     span::{SimpleSpan, Span as _},
 };
 use strum::EnumMessage;
@@ -63,6 +63,7 @@ pub enum ParserError<'a> {
         detailed_message = "Some actions require arguments, for example: `moveto [ ident ]`"
     )]
     ArgumentsFollowAction(Span),
+    CombinedError(Box<ParserError<'a>>, Box<ParserError<'a>>),
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -95,6 +96,7 @@ impl ParserError<'_> {
             ParserError::DuplicateMatcherInRule(s1, s2) => s1.union(*s2),
             ParserError::DuplicateActionInRule(s1, s2) => s1.union(*s2),
             ParserError::RuleNotNamed(simple_span) => *simple_span,
+            ParserError::CombinedError(e1, e2) => e1.span().union(e2.span()),
         }
     }
 
@@ -188,6 +190,11 @@ impl ParserError<'_> {
     /// }
     /// ```
     pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
+        if let ParserError::CombinedError(e1, e2) = self {
+            e1.print_error(file, lexer_spans);
+            e2.print_error(file, lexer_spans);
+            return;
+        }
         let span = self.to_lexer_span(lexer_spans);
         let file_span = (&file.file_name, span);
         let report = if let Some(report) = self.custom_error(file, lexer_spans) {
@@ -219,9 +226,8 @@ impl ParserError<'_> {
             Self::DuplicateMatcherInRule(s1, s2) => {
                 let span = self.to_lexer_span(lexer_spans);
                 let file_span = (&file.file_name, span);
-                let mut colors = ColorGenerator::new();
-                let a = colors.next();
-                let b = colors.next();
+                let a = Color::Red;
+                let b = Color::Blue;
                 let report_builder = Report::build(ReportKind::Error, file_span)
                     .with_message("A rule should have exactly one matcher. Duplicates detected")
                     .with_label(
@@ -239,9 +245,8 @@ impl ParserError<'_> {
             Self::DuplicateActionInRule(s1, s2) => {
                 let span = self.to_lexer_span(lexer_spans);
                 let file_span = (&file.file_name, span);
-                let mut colors = ColorGenerator::new();
-                let a = colors.next();
-                let b = colors.next();
+                let a = Color::Red;
+                let b = Color::Blue;
                 let report_builder = Report::build(ReportKind::Error, file_span)
                     .with_message("A rule should have exactly one action. Duplicates detected")
                     .with_label(
@@ -455,6 +460,10 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
                 Err(ParserError::RuleNotNamed(span))
             }
         })
+        // Recover to start of rule
+        .recover_with(via_parser(
+            none_of(Token::LBrace).repeated().to(String::new()),
+        ))
         .then(
             rule_pair
                 .repeated()
@@ -476,20 +485,24 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
             if actions.is_empty() {
                 return Err(ParserError::NoActionInRule(span));
             }
+            let mut matcher_err = None;
+            let mut action_err = None;
             if matchers.len() > 1 {
-                let spans = matchers
-                    .into_iter()
-                    .map(|(_, span)| *span)
-                    .collect::<Vec<_>>();
-                return Err(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
+                let spans = matchers.iter().map(|(_, span)| *span).collect::<Vec<_>>();
+                matcher_err = Some(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
             }
             if actions.len() > 1 {
-                let spans = actions
-                    .into_iter()
-                    .map(|(_, span)| *span)
-                    .collect::<Vec<_>>();
-                return Err(ParserError::DuplicateActionInRule(spans[0], spans[1]));
+                let spans = actions.iter().map(|(_, span)| *span).collect::<Vec<_>>();
+                action_err = Some(ParserError::DuplicateActionInRule(spans[0], spans[1]));
             }
+            match (matcher_err, action_err) {
+                (None, Some(err)) => return Err(err),
+                (Some(err), None) => return Err(err),
+                (None, None) => (),
+                (Some(e1), Some(e2)) => {
+                    return Err(ParserError::CombinedError(Box::new(e1), Box::new(e2)));
+                }
+            };
             let matcher = match matchers[0] {
                 (ParserRuleValue::Matcher(m), _) => m.clone(),
                 _ => unreachable!(),
