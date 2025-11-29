@@ -166,7 +166,11 @@ impl ParserError<'_> {
     fn note(&self) -> Option<String> {
         match self {
             ParserError::ExpectedFound { .. } => None,
-            _ => self.get_detailed_message().map(|s| s.to_string()),
+            _ => {
+                let note = self.get_detailed_message().map(|s| s.to_string());
+                let msg = self.message();
+                if note == Some(msg) { None } else { note }
+            }
         }
     }
 
