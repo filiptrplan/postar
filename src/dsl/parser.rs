@@ -292,13 +292,10 @@ impl ParserError<'_> {
 
 impl<'a> chumsky::error::Error<'a, TokenInput<'a>> for ParserError<'a> {
     fn merge(self, other: Self) -> Self {
-        println!("Merging {:?} and {:?}", self, other);
-        let out = match self {
+        match self {
             ParserError::ExpectedFound { .. } => other,
             _ => self,
-        };
-        println!("output: {:?}", out);
-        out
+        }
     }
 }
 
@@ -623,7 +620,6 @@ pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a
 pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a>> {
     let definition = choice((
         any().try_map(|token, span| {
-            dbg!(token);
             Err(ParserError::TopLevelDefinition(span))
         }),
         folder().map(ParserDefinition::Folder),
@@ -634,10 +630,6 @@ pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a
         .repeated()
         .collect::<Vec<_>>()
         .then_ignore(end())
-        .map_err(|err| {
-            dbg!(&err);
-            err
-        })
         .map(|defs| ParserConfig {
             folder_definitions: defs
                 .iter()
@@ -654,8 +646,20 @@ pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a
                 })
                 .collect(),
         })
-        .map_err(|err| {
-            dbg!(&err);
-            err
+        .map(|defs| ParserConfig {
+            folder_definitions: defs
+                .iter()
+                .filter_map(|def| match def {
+                    ParserDefinition::Folder(f) => Some(f.clone()),
+                    _ => None,
+                })
+                .collect(),
+            rule_definitions: defs
+                .iter()
+                .filter_map(|def| match def {
+                    ParserDefinition::Rule(r) => Some(r.clone()),
+                    _ => None,
+                })
+                .collect(),
         })
 }
