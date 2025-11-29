@@ -1,7 +1,7 @@
 use crate::dsl::{
     ast::*,
     lexer::{Token, process_tokens},
-    parser::{action, folder, matcher, rule, string_matcher},
+    parser::{action, folder, matcher, rule, string_matcher, config},
 };
 use chumsky::Parser;
 use test_log::test;
@@ -1369,4 +1369,447 @@ fn test_folder_uppercase_identifier() {
     };
     let tokens_result = process_tokens(&file);
     assert!(tokens_result.is_err());
+}
+
+// Config parser tests
+
+#[test]
+fn test_config_empty() {
+    let tokens = tokenize_text("");
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_single_folder() {
+    let tokens = tokenize_text("folder inbox { name: \"INBOX\" }");
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![ParserFolder {
+            identifier: "inbox".to_string(),
+            name: "INBOX".to_string(),
+        }],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_single_rule() {
+    let tokens = tokenize_text("rule test_rule { matcher: subject contains \"spam\" action: delete }");
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![],
+        rule_definitions: vec![ParserRule {
+            name: "test_rule".to_string(),
+            matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("spam".to_string())),
+            action: ParserAction::Delete,
+        }],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_multiple_folders() {
+    let tokens = tokenize_text(
+        "folder inbox { name: \"INBOX\" } folder sent { name: \"Sent\" } folder archive { name: \"Archive\" }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![
+            ParserFolder {
+                identifier: "inbox".to_string(),
+                name: "INBOX".to_string(),
+            },
+            ParserFolder {
+                identifier: "sent".to_string(),
+                name: "Sent".to_string(),
+            },
+            ParserFolder {
+                identifier: "archive".to_string(),
+                name: "Archive".to_string(),
+            },
+        ],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_multiple_rules() {
+    let tokens = tokenize_text(
+        "rule spam_filter { matcher: subject contains \"spam\" action: delete } rule important { matcher: from equals \"boss@company.com\" action: moveto [ urgent ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![],
+        rule_definitions: vec![
+            ParserRule {
+                name: "spam_filter".to_string(),
+                matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("spam".to_string())),
+                action: ParserAction::Delete,
+            },
+            ParserRule {
+                name: "important".to_string(),
+                matcher: ParserMatcher::From(ParserStringMatcher::Equals("boss@company.com".to_string())),
+                action: ParserAction::MoveTo(ParserIdentifier {
+                    identifier: "urgent".to_string(),
+                }),
+            },
+        ],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_mixed_folders_and_rules() {
+    let tokens = tokenize_text(
+        "folder inbox { name: \"INBOX\" } rule spam { matcher: subject contains \"spam\" action: delete } folder sent { name: \"Sent\" } rule important { matcher: from equals \"boss@company.com\" action: moveto [ urgent ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![
+            ParserFolder {
+                identifier: "inbox".to_string(),
+                name: "INBOX".to_string(),
+            },
+            ParserFolder {
+                identifier: "sent".to_string(),
+                name: "Sent".to_string(),
+            },
+        ],
+        rule_definitions: vec![
+            ParserRule {
+                name: "spam".to_string(),
+                matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("spam".to_string())),
+                action: ParserAction::Delete,
+            },
+            ParserRule {
+                name: "important".to_string(),
+                matcher: ParserMatcher::From(ParserStringMatcher::Equals("boss@company.com".to_string())),
+                action: ParserAction::MoveTo(ParserIdentifier {
+                    identifier: "urgent".to_string(),
+                }),
+            },
+        ],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_complex_rule_with_folder() {
+    let tokens = tokenize_text(
+        "folder priority { name: \"Priority\" } rule complex { matcher: and [ subject contains \"urgent\" or [ from equals \"admin@company.com\" to equals \"team@company.com\" ] ] action: moveto [ priority ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![ParserFolder {
+            identifier: "priority".to_string(),
+            name: "Priority".to_string(),
+        }],
+        rule_definitions: vec![ParserRule {
+            name: "complex".to_string(),
+            matcher: ParserMatcher::And(ParserMatchList {
+                list: vec![
+                    ParserMatcher::Subject(ParserStringMatcher::Contains("urgent".to_string())),
+                    ParserMatcher::Or(ParserMatchList {
+                        list: vec![
+                            ParserMatcher::From(ParserStringMatcher::Equals(
+                                "admin@company.com".to_string(),
+                            )),
+                            ParserMatcher::To(ParserStringMatcher::Equals(
+                                "team@company.com".to_string(),
+                            )),
+                        ],
+                    }),
+                ],
+            }),
+            action: ParserAction::MoveTo(ParserIdentifier {
+                identifier: "priority".to_string(),
+            }),
+        }],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_with_whitespace_and_newlines() {
+    let tokens = tokenize_text(
+        "folder inbox { name: \"INBOX\" } rule test { matcher: subject contains \"test\" action: delete }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![ParserFolder {
+            identifier: "inbox".to_string(),
+            name: "INBOX".to_string(),
+        }],
+        rule_definitions: vec![ParserRule {
+            name: "test".to_string(),
+            matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("test".to_string())),
+            action: ParserAction::Delete,
+        }],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+// Error cases for config parser
+
+#[test]
+fn test_config_invalid_top_level_definition() {
+    let tokens = tokenize_text("invalid_token");
+
+    let result = config().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_config_mixed_valid_and_invalid_definitions() {
+    let tokens = tokenize_text("folder inbox { name: \"INBOX\" } invalid rule test { matcher: subject contains \"test\" action: delete }");
+
+    let result = config().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_config_only_invalid_definition() {
+    let tokens = tokenize_text("invalid_keyword some_content");
+
+    let result = config().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_config_with_extra_tokens_after_valid_config() {
+    let tokens = tokenize_text("folder inbox { name: \"INBOX\" } extra_token");
+
+    let result = config().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_config_with_invalid_folder_definition() {
+    let tokens = tokenize_text("folder { name: \"INBOX\" }");
+
+    let result = config().parse(&tokens);
+    // The parser recovers and uses empty string as identifier, but has errors
+    assert!(result.has_output());
+    assert!(result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![ParserFolder {
+            identifier: "".to_string(),
+            name: "INBOX".to_string(),
+        }],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_with_invalid_rule_definition() {
+    let tokens = tokenize_text("rule { matcher: subject contains \"test\" action: delete }");
+
+    let result = config().parse(&tokens);
+    // The parser recovers and uses empty string as name, but has errors
+    assert!(result.has_output());
+    assert!(result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![],
+        rule_definitions: vec![ParserRule {
+            name: "".to_string(),
+            matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("test".to_string())),
+            action: ParserAction::Delete,
+        }],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_large_number_of_definitions() {
+    let mut config_text = String::new();
+    for i in 0..10 {
+        config_text.push_str(&format!("folder folder{} {{ name: \"Folder {}\" }} ", i, i));
+    }
+    for i in 0..10 {
+        config_text.push_str(&format!(
+            "rule rule{} {{ matcher: subject contains \"test{}\" action: delete }} ",
+            i, i
+        ));
+    }
+
+    let tokens = tokenize_text(&config_text);
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    
+    let output = result.into_output().unwrap();
+    assert_eq!(output.folder_definitions.len(), 10);
+    assert_eq!(output.rule_definitions.len(), 10);
+}
+
+#[test]
+fn test_config_complex_nested_structure() {
+    let tokens = tokenize_text(
+        "folder inbox { name: \"INBOX\" } folder urgent { name: \"Urgent\" } folder archive { name: \"Archive\" } rule spam_filter { matcher: or [ subject contains \"spam\" from equals \"spam@example.com\" ] action: delete } rule important_emails { matcher: and [ subject contains \"urgent\" from equals \"boss@company.com\" ] action: moveto [ urgent ] } rule old_emails { matcher: subject regex \".*old.*\" action: moveto [ archive ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    
+    let output = result.into_output().unwrap();
+    assert_eq!(output.folder_definitions.len(), 3);
+    assert_eq!(output.rule_definitions.len(), 3);
+    
+    // Check folder definitions
+    assert_eq!(output.folder_definitions[0].identifier, "inbox");
+    assert_eq!(output.folder_definitions[0].name, "INBOX");
+    assert_eq!(output.folder_definitions[1].identifier, "urgent");
+    assert_eq!(output.folder_definitions[1].name, "Urgent");
+    assert_eq!(output.folder_definitions[2].identifier, "archive");
+    assert_eq!(output.folder_definitions[2].name, "Archive");
+    
+    // Check rule definitions
+    assert_eq!(output.rule_definitions[0].name, "spam_filter");
+    assert_eq!(output.rule_definitions[1].name, "important_emails");
+    assert_eq!(output.rule_definitions[2].name, "old_emails");
+}
+
+#[test]
+fn test_config_duplicate_folder_identifiers() {
+    let tokens = tokenize_text(
+        "folder inbox { name: \"INBOX\" } folder inbox { name: \"Inbox2\" }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![
+            ParserFolder {
+                identifier: "inbox".to_string(),
+                name: "INBOX".to_string(),
+            },
+            ParserFolder {
+                identifier: "inbox".to_string(),
+                name: "Inbox2".to_string(),
+            },
+        ],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_duplicate_rule_names() {
+    let tokens = tokenize_text(
+        "rule test { matcher: subject contains \"spam\" action: delete } rule test { matcher: from equals \"user@example.com\" action: moveto [ inbox ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![],
+        rule_definitions: vec![
+            ParserRule {
+                name: "test".to_string(),
+                matcher: ParserMatcher::Subject(ParserStringMatcher::Contains("spam".to_string())),
+                action: ParserAction::Delete,
+            },
+            ParserRule {
+                name: "test".to_string(),
+                matcher: ParserMatcher::From(ParserStringMatcher::Equals("user@example.com".to_string())),
+                action: ParserAction::MoveTo(ParserIdentifier {
+                    identifier: "inbox".to_string(),
+                }),
+            },
+        ],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_with_special_characters_in_folder_names() {
+    let tokens = tokenize_text(
+        "folder special { name: \"INBOX.special-chars@domain.com\" } folder unicode { name: \"邮箱\" }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    let expected = ParserConfig {
+        folder_definitions: vec![
+            ParserFolder {
+                identifier: "special".to_string(),
+                name: "INBOX.special-chars@domain.com".to_string(),
+            },
+            ParserFolder {
+                identifier: "unicode".to_string(),
+                name: "邮箱".to_string(),
+            },
+        ],
+        rule_definitions: vec![],
+    };
+    assert_eq!(result.into_output(), Some(expected));
+}
+
+#[test]
+fn test_config_with_regex_matchers() {
+    let tokens = tokenize_text(
+        "rule regex_filter { matcher: body regex \".*pattern.*\" action: delete } rule complex_regex { matcher: or [ subject regex \"URGENT.*\" from regex \".*@company.com$\" ] action: moveto [ work ] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    
+    let output = result.into_output().unwrap();
+    assert_eq!(output.rule_definitions.len(), 2);
+    
+    // Check first rule
+    if let ParserMatcher::Body(ParserStringMatcher::Regex(pattern)) = &output.rule_definitions[0].matcher {
+        assert_eq!(pattern, ".*pattern.*");
+    } else {
+        panic!("Expected regex matcher");
+    }
+    
+    // Check second rule
+    if let ParserMatcher::Or(match_list) = &output.rule_definitions[1].matcher {
+        assert_eq!(match_list.list.len(), 2);
+    } else {
+        panic!("Expected or matcher");
+    }
 }

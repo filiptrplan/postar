@@ -646,20 +646,4 @@ pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a
                 })
                 .collect(),
         })
-        .map(|defs| ParserConfig {
-            folder_definitions: defs
-                .iter()
-                .filter_map(|def| match def {
-                    ParserDefinition::Folder(f) => Some(f.clone()),
-                    _ => None,
-                })
-                .collect(),
-            rule_definitions: defs
-                .iter()
-                .filter_map(|def| match def {
-                    ParserDefinition::Rule(r) => Some(r.clone()),
-                    _ => None,
-                })
-                .collect(),
-        })
 }
