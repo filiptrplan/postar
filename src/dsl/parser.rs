@@ -1,12 +1,13 @@
-use std::ops::Range;
+use std::ops::{Range, RangeFrom};
 
 use crate::dsl::{File, ast::*, lexer::Token};
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{Recursive, any, choice, just, recursive},
-    span::SimpleSpan,
+    input::Input,
+    prelude::{Recursive, any, choice, custom, just, recursive},
+    span::{SimpleSpan, Span as _},
 };
 
 type Span = SimpleSpan<usize>;
@@ -20,6 +21,7 @@ pub enum ParserError<'a> {
     ExpectedStringMatcherKeyword(Span),
     ExpectedStringMatcherAfterKeyword(Span),
     MatchListAfterLogicalOperator(Span),
+    MergedError(Span, Box<ParserError<'a>>, Box<ParserError<'a>>),
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -28,6 +30,15 @@ pub enum ParserError<'a> {
 }
 
 impl ParserError<'_> {
+    /// Returns `new_err` if `self` is [ParserError::ExpectedFound], else it returns itself.
+    fn replace_if_expected_found(&self, new_err: Self) -> Self {
+        match self {
+            Self::ExpectedFound { .. } => new_err,
+            _ => self.clone(),
+        }
+    }
+
+    /// Gives the span of the error. A helper function to help with destructuring
     fn span(&self) -> Span {
         match self {
             ParserError::ExpectedStringAfterStringMatcher(span) => *span,
@@ -35,8 +46,12 @@ impl ParserError<'_> {
             ParserError::ExpectedStringMatcherAfterKeyword(span) => *span,
             ParserError::MatchListAfterLogicalOperator(span) => *span,
             ParserError::ExpectedFound { span, .. } => *span,
+            ParserError::MergedError(simple_span, parser_error, parser_error1) => *simple_span,
         }
     }
+
+    /// Transforms the span stored by the error to a regular [Range<usize>] than can be used to
+    /// index the original input
     fn to_lexer_span(&self, spans: &[logos::Span]) -> Range<usize> {
         let span_range = self.span().into_range();
 
@@ -64,6 +79,7 @@ impl ParserError<'_> {
         start_byte..end_byte
     }
 
+    /// Returns the helper message that will be right below the error
     fn message(&self) -> String {
         match self {
             ParserError::ExpectedStringAfterStringMatcher(_) => {
@@ -98,9 +114,11 @@ impl ParserError<'_> {
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
+            ParserError::MergedError(simple_span, parser_error, parser_error1) => "".to_string(),
         }
     }
 
+    /// Returns the note for additional clarification
     fn note(&self) -> Option<String> {
         match self {
             ParserError::ExpectedStringAfterStringMatcher(_) => Some(
@@ -116,6 +134,7 @@ impl ParserError<'_> {
                 Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string())
             }
             ParserError::ExpectedFound { .. } => None,
+            ParserError::MergedError(simple_span, parser_error, parser_error1) => None,
         }
     }
 
@@ -141,9 +160,11 @@ impl ParserError<'_> {
     pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
         let span = self.to_lexer_span(lexer_spans);
         let file_span = (&file.file_name, span);
-        let mut report_builder = Report::build(ReportKind::Error, file_span.clone())
-            .with_message(self.message())
-            .with_label(Label::new(file_span.clone()).with_color(Color::Red));
+        let mut report_builder = Report::build(ReportKind::Error, file_span.clone()).with_label(
+            Label::new(file_span.clone())
+                .with_color(Color::Red)
+                .with_message(self.message()),
+        );
         if let Some(note) = self.note() {
             report_builder = report_builder.with_note(note);
         }
@@ -155,7 +176,7 @@ impl ParserError<'_> {
 }
 
 impl<'a> chumsky::error::Error<'a, TokenInput<'a>> for ParserError<'a> {
-    fn merge(self, _: Self) -> Self {
+    fn merge(self, other: Self) -> Self {
         self
     }
 }
@@ -231,10 +252,13 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
     let mut msg_matcher = Recursive::declare();
 
     let matcher_keyword = |keyword: Token| {
-        just(keyword).ignore_then(
-            string_matcher()
-                .map_err(|err| ParserError::ExpectedStringMatcherAfterKeyword(err.span())),
-        )
+        just(keyword)
+            .ignore_then(string_matcher())
+            .map_err_with_state(|err, span, _| {
+                err.replace_if_expected_found(ParserError::ExpectedStringMatcherAfterKeyword(
+                    err.span().union(span),
+                ))
+            })
     };
 
     matcher_rec.define(and_matcher.clone());
@@ -242,7 +266,11 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
     and_matcher.define(
         (just::<_, _, TokenErr<'a>>(Token::KwAnd)
             .ignore_then(match_list.clone())
-            .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+            .map_err_with_state(|err, span, _| {
+                err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
+                    err.span().union(span),
+                ))
+            })
             .map(ParserMatcher::And))
         .or(or_matcher.clone()),
     );
@@ -250,7 +278,11 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
     or_matcher.define(
         (just(Token::KwOr)
             .ignore_then(match_list.clone())
-            .map_err(|err| ParserError::MatchListAfterLogicalOperator(err.span()))
+            .map_err_with_state(|err, span, _| {
+                err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
+                    err.span().union(span),
+                ))
+            })
             .map(ParserMatcher::Or))
         .or(not_matcher.clone()),
     );
