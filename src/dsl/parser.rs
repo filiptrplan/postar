@@ -5,6 +5,7 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
+    label::LabelError,
     prelude::{Recursive, any, choice, just},
     span::{SimpleSpan, Span as _},
 };
@@ -20,6 +21,9 @@ pub enum ParserError<'a> {
     ExpectedStringMatcherKeyword(Span),
     ExpectedStringMatcherAfterKeyword(Span),
     MatchListAfterLogicalOperator(Span),
+    IdentifierMoveTo(Span),
+    InvalidAction(Span),
+    ArgumentsFollowAction(Span),
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -44,6 +48,9 @@ impl ParserError<'_> {
             ParserError::ExpectedStringMatcherAfterKeyword(span) => *span,
             ParserError::MatchListAfterLogicalOperator(span) => *span,
             ParserError::ExpectedFound { span, .. } => *span,
+            ParserError::IdentifierMoveTo(span) => *span,
+            ParserError::InvalidAction(span) => *span,
+            ParserError::ArgumentsFollowAction(span) => *span,
         }
     }
 
@@ -111,6 +118,13 @@ impl ParserError<'_> {
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
+            ParserError::IdentifierMoveTo(_) => {
+                "The argument for the moveto action should be an identifier.".to_string()
+            }
+            ParserError::InvalidAction(_) => "Invalid action".to_string(),
+            ParserError::ArgumentsFollowAction(_) => {
+                "Arguments should follow this action".to_string()
+            }
         }
     }
 
@@ -130,6 +144,9 @@ impl ParserError<'_> {
                 Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string())
             }
             ParserError::ExpectedFound { .. } => None,
+            ParserError::IdentifierMoveTo(_) => None,
+            ParserError::InvalidAction(_) => Some("Valid actions are: moveto, delete".to_string()),
+            ParserError::ArgumentsFollowAction(_) => Some("Some actions require arguments, for example: `moveto [ ident ]`".to_string()),
         }
     }
 
@@ -305,4 +322,33 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
     );
 
     matcher_rec
+}
+
+/// Parses the `args` parser delimited by square brackets. This is a special helper function which
+/// outputs a custom error upon failing.
+///
+/// ```ebnf
+/// action_list   = '[', { identifier | string }, ']' ;
+/// ```
+fn action_args<'a, O>(
+    args: impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>>,
+) -> impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>> {
+    args.delimited_by(just(Token::LBracket), just(Token::RBracket))
+        .map_err(|err: ParserError<'_>| ParserError::ArgumentsFollowAction(err.span()))
+}
+
+/// ```ebnf
+/// action        = 'delete' | 'moveto', action_list ;
+/// action_list   = '[', { identifier | string }, ']' ;
+/// ```
+pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, ParserAction, TokenErr<'a>> {
+    let delete = just(Token::KwDelete).to(ParserAction::Delete);
+    let moveto =
+        just(Token::KwMoveTo).ignore_then(action_args(any()).try_map(|tok, span| match tok {
+            Token::Ident(identifier) => Ok(ParserAction::MoveTo(ParserIdentifier { identifier })),
+            _ => Err(ParserError::IdentifierMoveTo(span)),
+        }));
+    choice((delete, moveto)).map_err_with_state(|err: ParserError<'a>, span: Span, _| {
+        err.replace_if_expected_found(ParserError::InvalidAction(span.union(err.span())))
+    })
 }

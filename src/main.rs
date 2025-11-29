@@ -3,7 +3,7 @@ use logos::Span;
 use postar::dsl::{
     File,
     lexer::{Token, process_tokens},
-    parser::matcher,
+    parser::{action, matcher},
 };
 
 #[derive(clap::Parser)]
@@ -25,7 +25,7 @@ fn main() {
 
     if let Ok(tokens) = tokens {
         let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
-        let res = matcher().parse(&only_tokens);
+        let res = action().parse(&only_tokens);
         dbg!(
             res.errors()
                 .for_each(|err| err.print_error(&file, &only_spans)),

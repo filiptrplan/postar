@@ -71,8 +71,7 @@ string_matcher
 
 match_list    = '[', { matcher }, ']' ;
 
-action        = 'delete' | 'moveto', action_list ;
-action_list   = '[', { identifier | string }, ']' ;
+action        = 'delete' | 'moveto' '[' identifier ']' ;
 
 folder        = 'folder', identifier, '{', folder_pair, '}' ;
 folder_pair   = 'name', ':', string ;
