@@ -1,12 +1,11 @@
-use std::ops::{Range, RangeFrom};
+use std::ops::Range;
 
 use crate::dsl::{File, ast::*, lexer::Token};
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
-    input::Input,
-    prelude::{Recursive, any, choice, custom, just, recursive},
+    prelude::{Recursive, any, choice, just},
     span::{SimpleSpan, Span as _},
 };
 
@@ -172,7 +171,7 @@ impl ParserError<'_> {
 }
 
 impl<'a> chumsky::error::Error<'a, TokenInput<'a>> for ParserError<'a> {
-    fn merge(self, other: Self) -> Self {
+    fn merge(self, _other: Self) -> Self {
         self
     }
 }

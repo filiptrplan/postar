@@ -1,12 +1,9 @@
-use std::fmt::format;
-
-use ariadne::{Label, Report, ReportKind, Source};
 use chumsky::Parser;
-use logos::{Logos, Span};
+use logos::Span;
 use postar::dsl::{
     File,
     lexer::{Token, process_tokens},
-    parser::{matcher, string_matcher},
+    parser::matcher,
 };
 
 #[derive(clap::Parser)]
