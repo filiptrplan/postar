@@ -73,7 +73,7 @@ match_list    = '[', { matcher }, ']' ;
 
 action        = 'delete' | 'moveto' '[' identifier ']' ;
 
-folder        = 'folder', identifier, '{', folder_pair, '}' ;
+folder        = 'folder', identifier, '{', { folder_pair }, '}' ;
 folder_pair   = 'name', ':', string ;
 
 identifier    = alpha-lower, { identifier1 } ;

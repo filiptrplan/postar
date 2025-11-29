@@ -60,5 +60,6 @@ pub struct ParserIdentifier {
 /// Maps to [crate::inbox::Folder]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParserFolder {
+    pub identifier: String,
     pub name: String,
 }

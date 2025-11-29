@@ -7,6 +7,7 @@ use chumsky::{
     extra::{self},
     prelude::{Recursive, any, choice, empty, just, none_of, via_parser},
     span::{SimpleSpan, Span as _},
+    util::Maybe,
 };
 use strum::EnumMessage;
 
@@ -19,6 +20,8 @@ type TokenErr<'a> = extra::Err<ParserError<'a>>;
 pub enum ParserError<'a> {
     #[strum(message = "A rule should have a name. Name is missing.")]
     RuleNotNamed(Span),
+    #[strum(message = "A folder should have a name. Name is missing.")]
+    FolderNotNamed(Span),
     #[strum(
         message = "Missing matcher",
         detailed_message = "A rule should have exactly one matcher. Define it like so: 'matcher: subject contains ...'"
@@ -96,6 +99,7 @@ impl ParserError<'_> {
             ParserError::DuplicateMatcherInRule(s1, s2) => s1.union(*s2),
             ParserError::DuplicateActionInRule(s1, s2) => s1.union(*s2),
             ParserError::RuleNotNamed(simple_span) => *simple_span,
+            ParserError::FolderNotNamed(simple_span) => *simple_span,
             ParserError::CombinedError(e1, e2) => e1.span().union(e2.span()),
         }
     }
@@ -167,6 +171,8 @@ impl ParserError<'_> {
         match self {
             ParserError::ExpectedFound { .. } => None,
             _ => {
+                // We do this check because if only message is specified in the derive macro, the
+                // two values are the same and we get a duplicated note and error message
                 let note = self.get_detailed_message().map(|s| s.to_string());
                 let msg = self.message();
                 if note == Some(msg) { None } else { note }
@@ -438,6 +444,11 @@ pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, ParserAction, TokenErr<'a
     })
 }
 
+/// ```ebnf
+/// rule          = 'rule', identifier, '{', { rule_pair }, '}' ;
+/// rule_pair     = 'matcher', ':', matcher
+///               | 'action',  ':', action ;
+/// ```
 pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
     // Here we do this weird mapping with kwspan so we actually highlight the start of the key
     // value pairs, not their content in order to generate better error messages. This helps the
@@ -521,5 +532,56 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
             name,
             matcher,
             action,
+        })
+}
+
+pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a>> {
+    just(Token::KwFolder)
+        .ignore_then(any())
+        .try_map(|tok, span| {
+            if let Token::Ident(s) = tok {
+                Ok(s)
+            } else {
+                Err(ParserError::FolderNotNamed(span))
+            }
+        })
+        // Recover to start of rule
+        .recover_with(via_parser(
+            none_of(Token::LBrace).repeated().to(String::new()),
+        ))
+        .then(
+            just(Token::KwName)
+                .then(just(Token::Colon))
+                .ignore_then(chumsky::select! {
+                    Token::Str(s) => s
+                })
+                // We do this dance to map somethingelse to a token::str because the select
+                // doesn't know we want a token::str. This is all to get a prettier error
+                .map_err(|e| match e {
+                    ParserError::ExpectedFound {
+                        span,
+                        expected,
+                        found,
+                    } => ParserError::ExpectedFound {
+                        span,
+                        found,
+                        expected: expected
+                            .into_iter()
+                            .map(|exp| {
+                                if let DefaultExpected::SomethingElse = exp {
+                                    DefaultExpected::Token(Maybe::Val(Token::Str("".to_string())))
+                                } else {
+                                    exp
+                                }
+                            })
+                            .collect(),
+                    },
+                    e => e,
+                })
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+        )
+        .map(|(ident, name)| ParserFolder {
+            identifier: ident,
+            name,
         })
 }
