@@ -1,4 +1,4 @@
-use crate::dsl::{ast::*, lexer::Token, parser::{string_matcher, matcher}};
+use crate::dsl::{ast::*, lexer::Token, parser::{string_matcher, matcher, action}};
 use chumsky::Parser;
 use test_log::test;
 
@@ -670,4 +670,197 @@ fn test_matcher_complex_nested_structure() {
         ],
     });
     assert_eq!(result.into_output(), Some(expected));
+}
+
+// Action tests
+
+#[test]
+fn test_action_delete() {
+    let tokens = vec![
+        Token::KwDelete,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::Delete));
+}
+
+#[test]
+fn test_action_moveto_valid_identifier() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("inbox".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "inbox".to_string() })));
+}
+
+#[test]
+fn test_action_moveto_identifier_with_numbers() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("folder123".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "folder123".to_string() })));
+}
+
+#[test]
+fn test_action_moveto_identifier_with_underscore() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("test_folder".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "test_folder".to_string() })));
+}
+
+#[test]
+fn test_action_moveto_identifier_complex() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("my_test_folder_123".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "my_test_folder_123".to_string() })));
+}
+
+// Error cases for action parser
+
+#[test]
+fn test_action_moveto_missing_brackets() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::Ident("inbox".to_string()),
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_moveto_missing_closing_bracket() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("inbox".to_string()),
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_moveto_string_instead_of_identifier() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Str("inbox".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_moveto_keyword_instead_of_identifier() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::KwDelete,
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_moveto_empty_brackets() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_invalid_token() {
+    let tokens = vec![
+        Token::Ident("invalid".to_string()),
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_empty_input() {
+    let tokens: Vec<Token> = vec![];
+    
+    let result = action().parse(&tokens);
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_moveto_with_extra_tokens() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("inbox".to_string()),
+        Token::Ident("extra".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    // The parser should fail because it doesn't expect extra tokens after the identifier
+    assert!(!result.has_output());
+    assert!(result.has_errors());
+}
+
+#[test]
+fn test_action_uppercase_identifier() {
+    let tokens = vec![
+        Token::KwMoveTo,
+        Token::LBracket,
+        Token::Ident("Inbox".to_string()),
+        Token::RBracket,
+    ];
+    
+    let result = action().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+    assert_eq!(result.into_output(), Some(ParserAction::MoveTo(ParserIdentifier { identifier: "Inbox".to_string() })));
 }
