@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::dsl::{File, ast::*, lexer::Token};
-use ariadne::{Color, Label, Report, ReportKind, Source};
+use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
     extra::{self},
@@ -17,6 +17,20 @@ type TokenErr<'a> = extra::Err<ParserError<'a>>;
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
 #[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
 pub enum ParserError<'a> {
+    #[strum(message = "A rule should have a name. Name is missing.")]
+    RuleNotNamed(Span),
+    #[strum(
+        message = "Missing matcher",
+        detailed_message = "A rule should have exactly one matcher. Define it like so: 'matcher: subject contains ...'"
+    )]
+    NoMatcherInRule(Span),
+    #[strum(
+        message = "Missing action",
+        detailed_message = "A rule should have exactly one action. Define it like so: 'action: delete'"
+    )]
+    NoActionInRule(Span),
+    DuplicateMatcherInRule(Span, Span),
+    DuplicateActionInRule(Span, Span),
     #[strum(
         message = "Expected string after string matcher",
         detailed_message = "String matchers require a string argument, e.g., 'contains \"hello\"'"
@@ -76,36 +90,47 @@ impl ParserError<'_> {
             ParserError::IdentifierMoveTo(span) => *span,
             ParserError::InvalidAction(span) => *span,
             ParserError::ArgumentsFollowAction(span) => *span,
+            ParserError::NoMatcherInRule(simple_span) => *simple_span,
+            ParserError::NoActionInRule(simple_span) => *simple_span,
+            ParserError::DuplicateMatcherInRule(s1, s2) => s1.union(*s2),
+            ParserError::DuplicateActionInRule(s1, s2) => s1.union(*s2),
+            ParserError::RuleNotNamed(simple_span) => *simple_span,
         }
     }
 
-    /// Transforms the span stored by the error to a regular [Range<usize>] than can be used to
+    /// Transforms arbitrary span stored by the error to a regular [Range<usize>] than can be used to
     /// index the original input
-    fn to_lexer_span(&self, spans: &[logos::Span]) -> Range<usize> {
-        let span_range = self.span().into_range();
+    fn span_to_lexer_span(span: Span, lexer_spans: &[logos::Span]) -> Range<usize> {
+        let span_range = span.into_range();
 
         // Handle case where file is completely empty (no spanced tokens)
-        if spans.is_empty() {
+        if lexer_spans.is_empty() {
             return 0..0;
         }
 
         // Safely get start byte (or EOF if index out of bounds)
-        let start_byte = spans
+        let start_byte = lexer_spans
             .get(span_range.start)
             .map(|s| s.start)
-            .unwrap_or_else(|| spans.last().unwrap().end);
+            .unwrap_or_else(|| lexer_spans.last().unwrap().end);
 
         // Safely get end byte
         let end_byte = if span_range.start == span_range.end {
             start_byte
         } else {
-            spans
+            lexer_spans
                 .get(span_range.end.saturating_sub(1))
                 .map(|s| s.end)
-                .unwrap_or_else(|| spans.last().unwrap().end)
+                .unwrap_or_else(|| lexer_spans.last().unwrap().end)
         };
 
         start_byte..end_byte
+    }
+
+    /// Transforms the span stored by the error to a regular [Range<usize>] than can be used to
+    /// index the original input
+    fn to_lexer_span(&self, spans: &[logos::Span]) -> Range<usize> {
+        Self::span_to_lexer_span(self.span(), spans)
     }
 
     /// Returns the helper message that will be right below the error
@@ -131,7 +156,7 @@ impl ParserError<'_> {
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
-            _ => self.get_message().unwrap().to_string(),
+            _ => self.get_message().unwrap_or("").to_string(),
         }
     }
 
@@ -165,18 +190,54 @@ impl ParserError<'_> {
     pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
         let span = self.to_lexer_span(lexer_spans);
         let file_span = (&file.file_name, span);
-        let mut report_builder = Report::build(ReportKind::Error, file_span.clone()).with_label(
-            Label::new(file_span.clone())
-                .with_color(Color::Red)
-                .with_message(self.message()),
-        );
-        if let Some(note) = self.note() {
-            report_builder = report_builder.with_note(note);
-        }
-        report_builder
-            .finish()
+        let report = if let Some(report) = self.custom_error(file, lexer_spans) {
+            report
+        } else {
+            let mut report_builder = Report::build(ReportKind::Error, file_span.clone())
+                .with_label(
+                    Label::new(file_span.clone())
+                        .with_color(Color::Red)
+                        .with_message(self.message()),
+                );
+            if let Some(note) = self.note() {
+                report_builder = report_builder.with_note(note);
+            }
+            report_builder.finish()
+        };
+        report
             .print((&file.file_name, Source::from(&file.contents)))
             .unwrap();
+    }
+
+    /// Defines a custom [ariadne report](ariadne::Report) for displaying more complex errors.
+    fn custom_error<'a>(
+        &self,
+        file: &'a File,
+        lexer_spans: &'a [logos::Span],
+    ) -> Option<Report<'a, (&'a String, Range<usize>)>> {
+        match self {
+            Self::DuplicateActionInRule(s1, s2) => {
+                let span = self.to_lexer_span(lexer_spans);
+                let file_span = (&file.file_name, span);
+                let mut colors = ColorGenerator::new();
+                let a = colors.next();
+                let b = colors.next();
+                let report_builder = Report::build(ReportKind::Error, file_span)
+                    .with_message("A rule should have exactly one action. Duplicates detected")
+                    .with_label(
+                        Label::new((&file.file_name, Self::span_to_lexer_span(*s1, lexer_spans)))
+                            .with_message("First action found here".fg(a))
+                            .with_color(a),
+                    )
+                    .with_label(
+                        Label::new((&file.file_name, Self::span_to_lexer_span(*s2, lexer_spans)))
+                            .with_message("Second action found here".fg(b))
+                            .with_color(b),
+                    );
+                Some(report_builder.finish())
+            }
+            _ => None,
+        }
     }
 }
 
@@ -346,4 +407,82 @@ pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, ParserAction, TokenErr<'a
     choice((delete, moveto)).map_err_with_state(|err: ParserError<'a>, span: Span, _| {
         err.replace_if_expected_found(ParserError::InvalidAction(span.union(err.span())))
     })
+}
+
+pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
+    // Here we do this weird mapping with kwspan so we actually highlight the start of the key
+    // value pairs, not their content in order to generate better error messages. This helps the
+    // user actually identify where they made an error
+    let rule_pair = choice((
+        just(Token::KwMatcher)
+            .then(just(Token::Colon))
+            .map_with(|_, extra| extra.span())
+            .then(matcher())
+            .map(|(kwspan, x)| (ParserRuleValue::Matcher(x), kwspan)),
+        just(Token::KwAction)
+            .then(just(Token::Colon))
+            .map_with(|_, extra| extra.span())
+            .then(action())
+            .map(|(kwspan, x)| (ParserRuleValue::Action(x), kwspan)),
+    ));
+
+    just(Token::KwRule)
+        .ignore_then(any())
+        .try_map(|tok, span| {
+            if let Token::Ident(s) = tok {
+                Ok(s)
+            } else {
+                Err(ParserError::RuleNotNamed(span))
+            }
+        })
+        .then(
+            rule_pair
+                .repeated()
+                .collect::<Vec<_>>()
+                .delimited_by(just(Token::LBrace), just(Token::RBrace)),
+        )
+        .try_map(|(name, list), span| {
+            let matchers: Vec<_> = list
+                .iter()
+                .filter(|val| matches!(val, (ParserRuleValue::Matcher(_), _)))
+                .collect();
+            let actions: Vec<_> = list
+                .iter()
+                .filter(|val| matches!(val, (ParserRuleValue::Action(_), _)))
+                .collect();
+            if matchers.is_empty() {
+                return Err(ParserError::NoMatcherInRule(span));
+            }
+            if actions.is_empty() {
+                return Err(ParserError::NoActionInRule(span));
+            }
+            if matchers.len() > 1 {
+                let spans = matchers
+                    .into_iter()
+                    .map(|(_, span)| *span)
+                    .collect::<Vec<_>>();
+                return Err(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
+            }
+            if actions.len() > 1 {
+                let spans = actions
+                    .into_iter()
+                    .map(|(_, span)| *span)
+                    .collect::<Vec<_>>();
+                return Err(ParserError::DuplicateActionInRule(spans[0], spans[1]));
+            }
+            let matcher = match matchers[0] {
+                (ParserRuleValue::Matcher(m), _) => m.clone(),
+                _ => unreachable!(),
+            };
+            let action = match actions[0] {
+                (ParserRuleValue::Action(a), _) => a.clone(),
+                _ => unreachable!(),
+            };
+            Ok((name, matcher, action))
+        })
+        .map(|(name, matcher, action)| ParserRule {
+            name,
+            matcher,
+            action,
+        })
 }

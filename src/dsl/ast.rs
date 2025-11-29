@@ -12,6 +12,12 @@ pub struct ParserRule {
     pub action: ParserAction,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParserRuleValue {
+    Matcher(ParserMatcher),
+    Action(ParserAction),
+}
+
 /// Maps to [crate::process::Matcher]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParserMatcher {
