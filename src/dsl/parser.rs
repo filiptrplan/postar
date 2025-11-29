@@ -21,7 +21,6 @@ pub enum ParserError<'a> {
     ExpectedStringMatcherKeyword(Span),
     ExpectedStringMatcherAfterKeyword(Span),
     MatchListAfterLogicalOperator(Span),
-    MergedError(Span, Box<ParserError<'a>>, Box<ParserError<'a>>),
     ExpectedFound {
         span: Span,
         expected: Vec<DefaultExpected<'a, Token>>,
@@ -46,7 +45,6 @@ impl ParserError<'_> {
             ParserError::ExpectedStringMatcherAfterKeyword(span) => *span,
             ParserError::MatchListAfterLogicalOperator(span) => *span,
             ParserError::ExpectedFound { span, .. } => *span,
-            ParserError::MergedError(simple_span, parser_error, parser_error1) => *simple_span,
         }
     }
 
@@ -114,7 +112,6 @@ impl ParserError<'_> {
                     .unwrap_or_else(|| "EOF".to_string());
                 format!("Expected {}, found {}", expected_str, found_str)
             }
-            ParserError::MergedError(simple_span, parser_error, parser_error1) => "".to_string(),
         }
     }
 
@@ -134,7 +131,6 @@ impl ParserError<'_> {
                 Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string())
             }
             ParserError::ExpectedFound { .. } => None,
-            ParserError::MergedError(simple_span, parser_error, parser_error1) => None,
         }
     }
 
