@@ -12,8 +12,8 @@ pub enum Action {
 
 #[derive(Debug)]
 pub enum Matcher {
-    And(Box<Matcher>, Box<Matcher>),
-    Or(Box<Matcher>, Box<Matcher>),
+    And(Vec<Matcher>),
+    Or(Vec<Matcher>),
     Not(Box<Matcher>),
 
     Subject(StringMatcher),
@@ -103,10 +103,8 @@ impl Matcher {
                 }
             }
             Matcher::Body(string_matcher) => string_matcher.matches(&message.body()),
-            Matcher::And(matcher, matcher1) => {
-                matcher.matches(message) && matcher1.matches(message)
-            }
-            Matcher::Or(matcher, matcher1) => matcher.matches(message) || matcher1.matches(message),
+            Matcher::And(matchers) => matchers.iter().all(|m| m.matches(message)),
+            Matcher::Or(matchers) => matchers.iter().any(|m| m.matches(message)),
             Matcher::Not(matcher) => !matcher.matches(message),
         }
     }

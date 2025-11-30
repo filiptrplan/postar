@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use crate::{
     // dsl::name_resolver::{self, NameResolver},
+    dsl::resolver::{ResolutionError, Resolve, Resolver},
     process::{Action, Rule},
 };
 
@@ -83,34 +84,16 @@ pub struct ParserFolder {
     pub name: String,
 }
 
-// trait Resolve<T, A> {
-//     fn resolve(self, args: &A) -> anyhow::Result<T>;
-// }
-//
-// impl Resolve<Action, NameResolver<'_>> for ParserAction {
-//     fn resolve(self, name_resolver: &NameResolver) -> anyhow::Result<Action> {
-//         Ok(match self {
-//             Self::Delete => Action::Delete,
-//             Self::MoveTo(ident) => Action::Move(
-//                 name_resolver
-//                     .resolve(&ident.identifier)
-//                     .ok_or(anyhow::format_err!("Cannot resolve identifier {:?}", ident))?
-//                     .clone(),
-//             ),
-//         })
-//     }
-// }
+impl ParserConfig {
+    pub fn to_rules(self) -> Result<Vec<Rule>, ResolutionError> {
+        let ctx = Resolver::build(&self)?;
 
-// impl ParserRule {
-//     fn to_rule(self, name_resolver: &NameResolver) -> anyhow::Result<Rule> {
-//         let action = self.action.resolve(name_resolver)?;
-//     }
-// }
-//
-// impl ParserConfig {
-//     /// Parses this config to a set of rules
-//     pub fn to_rules(self) -> anyhow::Result<Vec<Rule>> {
-//         let name_resolver = NameResolver::new(self);
-//         self.rule_definitions
-//     }
-// }
+        let rules = self
+            .rule_definitions
+            .into_iter()
+            .map(|x| x.resolve(&ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(rules)
+    }
+}

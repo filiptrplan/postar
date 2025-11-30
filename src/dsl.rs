@@ -9,6 +9,9 @@ pub mod parser;
 #[cfg(test)]
 mod parser_tests;
 
+/// Handles resolving the AST to the actual configuration
+pub mod resolver;
+
 /// The main struct representing a file.
 ///
 pub struct File {
