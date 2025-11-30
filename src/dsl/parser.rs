@@ -601,59 +601,61 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserRule>, TokenErr<
 /// folder        = 'folder', identifier, '{', { folder_pair }, '}' ;
 /// folder_pair   = 'name', ':', string ;
 /// ```
-pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a>> {
-    just(Token::KwFolder).ignore_then(
-        any()
-            .try_map(|tok, span| {
-                if let Token::Ident(s) = tok {
-                    Ok(s)
-                } else {
-                    Err(ParserError::FolderNotNamed(span))
-                }
-            })
-            .recover_with(via_parser(
-                none_of(Token::LBrace).repeated().to(String::new()),
-            ))
-            .then(
-                just(Token::KwName)
-                    .then(just(Token::Colon))
-                    .ignore_then(chumsky::select! {
-                        Token::Str(s) => s
-                    })
-                    .map_err(|e| match e {
-                        ParserError::ExpectedFound {
-                            span,
-                            expected,
-                            found,
-                        } => ParserError::ExpectedFound {
-                            span,
-                            found,
-                            expected: expected
-                                .into_iter()
-                                .map(|exp| {
-                                    if let DefaultExpected::SomethingElse = exp {
-                                        DefaultExpected::Token(Maybe::Val(Token::Str(
-                                            "".to_string(),
-                                        )))
-                                    } else {
-                                        exp
-                                    }
-                                })
-                                .collect(),
-                        },
-                        e => e,
-                    })
-                    .delimited_by(
-                        just(Token::LBrace),
-                        just(Token::RBrace).map_err(|err: ParserError<'_>| {
-                            ParserError::MissingClosingBrace(err.span())
-                        }),
-                    ),
-            )
-            .map(|(ident, name)| ParserFolder {
-                identifier: ident,
-                name,
-            }),
+pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserFolder>, TokenErr<'a>> {
+    spanned(
+        just(Token::KwFolder).ignore_then(
+            any()
+                .try_map(|tok, span| {
+                    if let Token::Ident(s) = tok {
+                        Ok(s)
+                    } else {
+                        Err(ParserError::FolderNotNamed(span))
+                    }
+                })
+                .recover_with(via_parser(
+                    none_of(Token::LBrace).repeated().to(String::new()),
+                ))
+                .then(
+                    just(Token::KwName)
+                        .then(just(Token::Colon))
+                        .ignore_then(chumsky::select! {
+                            Token::Str(s) => s
+                        })
+                        .map_err(|e| match e {
+                            ParserError::ExpectedFound {
+                                span,
+                                expected,
+                                found,
+                            } => ParserError::ExpectedFound {
+                                span,
+                                found,
+                                expected: expected
+                                    .into_iter()
+                                    .map(|exp| {
+                                        if let DefaultExpected::SomethingElse = exp {
+                                            DefaultExpected::Token(Maybe::Val(Token::Str(
+                                                "".to_string(),
+                                            )))
+                                        } else {
+                                            exp
+                                        }
+                                    })
+                                    .collect(),
+                            },
+                            e => e,
+                        })
+                        .delimited_by(
+                            just(Token::LBrace),
+                            just(Token::RBrace).map_err(|err: ParserError<'_>| {
+                                ParserError::MissingClosingBrace(err.span())
+                            }),
+                        ),
+                )
+                .map(|(ident, name)| ParserFolder {
+                    identifier: ident,
+                    name,
+                }),
+        ),
     )
 }
 

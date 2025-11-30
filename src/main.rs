@@ -1,4 +1,7 @@
-use chumsky::Parser;
+use chumsky::{
+    Parser,
+    extra::{self, SimpleState},
+};
 use logos::Span;
 use postar::dsl::{
     File,
@@ -25,13 +28,14 @@ fn main() {
 
     if let Ok(tokens) = tokens {
         let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
-        let res = config().parse(&only_tokens);
+        let mut state = SimpleState::from(&only_spans[..]);
+        let res = config().parse_with_state(&only_tokens, &mut state);
         // dbg!(
         res.errors().for_each(|err| {
             err.print_error(&file, &only_spans);
             dbg!(err);
-        })
+        });
         // );
-        // dbg!(res);
+        dbg!(res);
     }
 }

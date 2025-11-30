@@ -13,14 +13,14 @@ pub struct Node<T> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParserConfig {
-    pub folder_definitions: Vec<ParserFolder>,
-    pub rule_definitions: Vec<ParserRule>,
+    pub folder_definitions: Vec<Node<ParserFolder>>,
+    pub rule_definitions: Vec<Node<ParserRule>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParserDefinition {
-    Rule(ParserRule),
-    Folder(ParserFolder),
+    Rule(Node<ParserRule>),
+    Folder(Node<ParserFolder>),
 }
 
 /// Maps to [crate::process::Rule]
