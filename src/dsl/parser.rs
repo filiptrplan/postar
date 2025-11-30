@@ -379,7 +379,7 @@ pub fn string_matcher<'a>()
 ///
 /// match_list    = '[', { matcher }, ']' ;
 /// ```
-pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<'a>> {
+pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserMatcher>, TokenErr<'a>> + Clone {
     let mut matcher_rec = Recursive::declare();
     let mut and_matcher = Recursive::declare();
     let mut or_matcher = Recursive::declare();
@@ -400,50 +400,56 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
     matcher_rec.define(and_matcher.clone());
 
     and_matcher.define(
-        (just::<_, _, TokenErr<'a>>(Token::KwAnd)
-            .ignore_then(match_list.clone())
-            .map_err_with_state(|err, span, _| {
-                err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
-                    err.span().union(span),
-                ))
-            })
-            .map(ParserMatcher::And))
+        spanned(
+            just::<_, _, TokenErr<'a>>(Token::KwAnd)
+                .ignore_then(match_list.clone())
+                .map_err_with_state(|err, span, _| {
+                    err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
+                        err.span().union(span),
+                    ))
+                })
+                .map(ParserMatcher::And),
+        )
         .or(or_matcher.clone()),
     );
 
     or_matcher.define(
-        (just(Token::KwOr)
-            .ignore_then(match_list.clone())
-            .map_err_with_state(|err, span, _| {
-                err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
-                    err.span().union(span),
-                ))
-            })
-            .map(ParserMatcher::Or))
+        spanned(
+            just(Token::KwOr)
+                .ignore_then(match_list.clone())
+                .map_err_with_state(|err, span, _| {
+                    err.replace_if_expected_found(ParserError::MatchListAfterLogicalOperator(
+                        err.span().union(span),
+                    ))
+                })
+                .map(ParserMatcher::Or),
+        )
         .or(not_matcher.clone()),
     );
 
     not_matcher
         .define((just(Token::KwNot).ignore_then(msg_matcher.clone())).or(msg_matcher.clone()));
 
-    msg_matcher.define(choice((
-        matcher_keyword(Token::KwSubject).map(ParserMatcher::Subject),
-        matcher_keyword(Token::KwFrom).map(ParserMatcher::From),
-        matcher_keyword(Token::KwTo).map(ParserMatcher::To),
-        matcher_keyword(Token::KwBody).map(ParserMatcher::Body),
-        matcher_rec
+    msg_matcher.define(
+        spanned(choice((
+            matcher_keyword(Token::KwSubject).map(ParserMatcher::Subject),
+            matcher_keyword(Token::KwFrom).map(ParserMatcher::From),
+            matcher_keyword(Token::KwTo).map(ParserMatcher::To),
+            matcher_keyword(Token::KwBody).map(ParserMatcher::Body),
+        )))
+        .or(matcher_rec
             .clone()
-            .delimited_by(just(Token::LParen), just(Token::RParen)),
-    )));
+            .delimited_by(just(Token::LParen), just(Token::RParen))),
+    );
 
-    match_list.define(
+    match_list.define(spanned(
         matcher_rec
             .clone()
             .repeated()
             .collect()
             .delimited_by(just(Token::LBracket), just(Token::RBracket))
             .map(|matchers| ParserMatchList { list: matchers }),
-    );
+    ));
 
     matcher_rec
 }
@@ -455,8 +461,8 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, ParserMatcher, TokenErr<
 /// action_list   = '[', { identifier | string }, ']' ;
 /// ```
 fn action_args<'a, O>(
-    args: impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>>,
-) -> impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>> {
+    args: impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>> + Clone,
+) -> impl Parser<'a, TokenInput<'a>, O, TokenErr<'a>> + Clone {
     args.delimited_by(just(Token::LBracket), just(Token::RBracket))
         .map_err_with_state(|err: ParserError<'_>, span, _| {
             ParserError::ArgumentsFollowAction(err.span().union(span))
@@ -467,28 +473,25 @@ fn action_args<'a, O>(
 /// action        = 'delete' | 'moveto', action_list ;
 /// action_list   = '[', { identifier | string }, ']' ;
 /// ```
-pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, ParserAction, TokenErr<'a>> {
+pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserAction>, TokenErr<'a>> + Clone {
     let delete = just(Token::KwDelete).to(ParserAction::Delete);
-    let moveto =
-        just(Token::KwMoveTo).ignore_then(action_args(any()).try_map(|tok, span| match tok {
-            Token::Ident(identifier) => Ok(ParserAction::MoveTo(ParserIdentifier { identifier })),
+    let moveto = just(Token::KwMoveTo).ignore_then(
+        spanned(action_args(any()).try_map(|tok, span| match tok {
+            Token::Ident(identifier) => Ok(ParserIdentifier { identifier }),
             _ => Err(ParserError::IdentifierMoveTo(span)),
-        }));
-    choice((delete, moveto)).map_err_with_state(|err: ParserError<'a>, span: Span, _| {
-        err.replace_if_expected_found(ParserError::InvalidAction(span.union(err.span())))
-    })
+        }))
+        .map(|ident| ParserAction::MoveTo(ident)),
+    );
+    spanned(
+        choice((delete, moveto)).map_err_with_state(|err: ParserError<'a>, span: Span, _| {
+            err.replace_if_expected_found(ParserError::InvalidAction(span.union(err.span())))
+        }),
+    )
 }
 
-/// ```ebnf
-/// rule          = 'rule', identifier, '{', { rule_pair }, '}' ;
-/// rule_pair     = 'matcher', ':', matcher
-///               | 'action',  ':', action ;
-/// ```
-pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
-    // Here we do this weird mapping with kwspan so we actually highlight the start of the key
-    // value pairs, not their content in order to generate better error messages. This helps the
-    // user actually identify where they made an error
-    let rule_pair = choice((
+fn rule_pair<'a>()
+-> impl Parser<'a, TokenInput<'a>, Node<(ParserRuleValue, Span)>, TokenErr<'a>> + Clone {
+    spanned(choice((
         just(Token::KwMatcher)
             .then(just(Token::Colon))
             .map_with(|_, extra| extra.span())
@@ -499,79 +502,98 @@ pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, ParserRule, TokenErr<'a>> {
             .map_with(|_, extra| extra.span())
             .then(action())
             .map(|(kwspan, x)| (ParserRuleValue::Action(x), kwspan)),
-    ));
+    )))
+}
+
+/// ```ebnf
+/// rule          = 'rule', identifier, '{', { rule_pair }, '}' ;
+/// rule_pair     = 'matcher', ':', matcher
+///               | 'action',  ':', action ;
+/// ```
+pub fn rule<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserRule>, TokenErr<'a>> {
+    // Here we do this weird mapping with kwspan so we actually highlight the start of the key
+    // value pairs, not their content in order to generate better error messages. This helps the
+    // user actually identify where they made an error
+    let map_rule_action_list = |(name, list): (String, Vec<Node<(ParserRuleValue, Span)>>),
+                                span| {
+        let matchers: Vec<_> = list
+            .iter()
+            .filter(|val| matches!(val.value, (ParserRuleValue::Matcher(_), _)))
+            .collect();
+        let actions: Vec<_> = list
+            .iter()
+            .filter(|val| matches!(val.value, (ParserRuleValue::Action(_), _)))
+            .collect();
+
+        if matchers.is_empty() {
+            return Err(ParserError::NoMatcherInRule(span));
+        }
+        if actions.is_empty() {
+            return Err(ParserError::NoActionInRule(span));
+        }
+
+        let mut matcher_err = None;
+        let mut action_err = None;
+
+        if matchers.len() > 1 {
+            let spans = matchers.iter().map(|n| n.value.1).collect::<Vec<_>>();
+            matcher_err = Some(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
+        }
+        if actions.len() > 1 {
+            let spans = actions.iter().map(|n| n.value.1).collect::<Vec<_>>();
+            action_err = Some(ParserError::DuplicateActionInRule(spans[0], spans[1]));
+        }
+
+        match (matcher_err, action_err) {
+            (None, Some(err)) => return Err(err),
+            (Some(err), None) => return Err(err),
+            (None, None) => (),
+            (Some(e1), Some(e2)) => {
+                return Err(ParserError::CombinedError(Box::new(e1), Box::new(e2)));
+            }
+        };
+
+        let matcher = match &matchers[0].value {
+            (ParserRuleValue::Matcher(m), _) => m.clone(),
+            _ => unreachable!(),
+        };
+        let action = match &actions[0].value {
+            (ParserRuleValue::Action(a), _) => a.clone(),
+            _ => unreachable!(),
+        };
+
+        Ok((name, matcher, action))
+    };
 
     // Nesting the main logic inside `ignore_then` prevents recovery
     // from triggering if the 'rule' keyword itself is missing.
-    just(Token::KwRule).ignore_then(
-        any()
-            .try_map(|tok, span| {
-                if let Token::Ident(s) = tok {
-                    Ok(s)
-                } else {
-                    Err(ParserError::RuleNotNamed(span))
-                }
-            })
-            // Recovery only happens here, AFTER we know it's a rule
-            .recover_with(via_parser(
-                none_of(Token::LBrace).repeated().to(String::new()),
-            ))
-            .then(
-                rule_pair.repeated().collect::<Vec<_>>().delimited_by(
+    spanned(
+        just(Token::KwRule).ignore_then(
+            any()
+                .try_map(|tok, span| {
+                    if let Token::Ident(s) = tok {
+                        Ok(s)
+                    } else {
+                        Err(ParserError::RuleNotNamed(span))
+                    }
+                })
+                // Recovery only happens here, AFTER we know it's a rule
+                .recover_with(via_parser(
+                    none_of(Token::LBrace).repeated().to(String::new()),
+                ))
+                .then(rule_pair().repeated().collect::<Vec<_>>().delimited_by(
                     just(Token::LBrace),
                     just(Token::RBrace).map_err(|err: ParserError<'_>| {
                         ParserError::MissingClosingBrace(err.span())
                     }),
-                ),
-            )
-            .try_map(|(name, list), span| {
-                let matchers: Vec<_> = list
-                    .iter()
-                    .filter(|val| matches!(val, (ParserRuleValue::Matcher(_), _)))
-                    .collect();
-                let actions: Vec<_> = list
-                    .iter()
-                    .filter(|val| matches!(val, (ParserRuleValue::Action(_), _)))
-                    .collect();
-                if matchers.is_empty() {
-                    return Err(ParserError::NoMatcherInRule(span));
-                }
-                if actions.is_empty() {
-                    return Err(ParserError::NoActionInRule(span));
-                }
-                let mut matcher_err = None;
-                let mut action_err = None;
-                if matchers.len() > 1 {
-                    let spans = matchers.iter().map(|(_, span)| *span).collect::<Vec<_>>();
-                    matcher_err = Some(ParserError::DuplicateMatcherInRule(spans[0], spans[1]));
-                }
-                if actions.len() > 1 {
-                    let spans = actions.iter().map(|(_, span)| *span).collect::<Vec<_>>();
-                    action_err = Some(ParserError::DuplicateActionInRule(spans[0], spans[1]));
-                }
-                match (matcher_err, action_err) {
-                    (None, Some(err)) => return Err(err),
-                    (Some(err), None) => return Err(err),
-                    (None, None) => (),
-                    (Some(e1), Some(e2)) => {
-                        return Err(ParserError::CombinedError(Box::new(e1), Box::new(e2)));
-                    }
-                };
-                let matcher = match matchers[0] {
-                    (ParserRuleValue::Matcher(m), _) => m.clone(),
-                    _ => unreachable!(),
-                };
-                let action = match actions[0] {
-                    (ParserRuleValue::Action(a), _) => a.clone(),
-                    _ => unreachable!(),
-                };
-                Ok((name, matcher, action))
-            })
-            .map(|(name, matcher, action)| ParserRule {
-                name,
-                matcher,
-                action,
-            }),
+                ))
+                .try_map(map_rule_action_list)
+                .map(|(name, matcher, action)| ParserRule {
+                    name,
+                    matcher,
+                    action,
+                }),
+        ),
     )
 }
 

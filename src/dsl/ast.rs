@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::{
-    dsl::name_resolver::{self, NameResolver},
+    // dsl::name_resolver::{self, NameResolver},
     process::{Action, Rule},
 };
 
@@ -28,7 +28,7 @@ pub enum ParserDefinition {
 pub struct ParserRule {
     pub name: String,
     pub matcher: Node<ParserMatcher>,
-    pub action: ParserAction,
+    pub action: Node<ParserAction>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
