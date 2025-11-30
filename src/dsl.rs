@@ -46,8 +46,8 @@ impl File {
         }
     }
     pub fn parse_to_rules(&mut self) -> anyhow::Result<Vec<Rule>> {
-        let tokens = lexer::process_tokens(&self).map_err(|err| {
-            err.iter().for_each(|err_in| err_in.print_error(&self));
+        let tokens = lexer::process_tokens(self).map_err(|err| {
+            err.iter().for_each(|err_in| err_in.print_error(self));
             anyhow::format_err!("Lexing error.")
         })?;
 
@@ -61,7 +61,7 @@ impl File {
 
         if res.has_errors() {
             res.errors().for_each(|err| {
-                err.print_error(&self);
+                err.print_error(self);
             });
             return Err(anyhow::format_err!("Parsing error."));
         }
@@ -69,7 +69,7 @@ impl File {
         if res.has_output() {
             let config = res.output().unwrap().clone();
             let rules = config.to_rules().map_err(|err| {
-                err.print_error(&self);
+                err.print_error(self);
                 anyhow::format_err!("Resolution error.")
             })?;
             Ok(rules)

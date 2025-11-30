@@ -1,5 +1,7 @@
 use std::{collections::HashMap, ops::Range};
 
+use ariadne::{Color, Label, Report, ReportKind, Source};
+
 use crate::{
     dsl::{ast::*, error::DslError},
     inbox::Folder,
@@ -19,7 +21,51 @@ type ResolutionResult<T> = Result<T, ResolutionError>;
 
 impl DslError for ResolutionError {
     fn print_error(&self, file: &super::File) {
-        todo!()
+        match self {
+            ResolutionError::DuplicateFolder(identifier, first_span, second_span) => {
+                Report::build(ReportKind::Error, (&file.file_name, first_span.clone()))
+                    .with_message(format!("Duplicate folder definition: '{}'", identifier))
+                    .with_label(
+                        Label::new((&file.file_name, first_span.clone()))
+                            .with_message("First definition found here")
+                            .with_color(Color::Red),
+                    )
+                    .with_label(
+                        Label::new((&file.file_name, second_span.clone()))
+                            .with_message("Second definition found here")
+                            .with_color(Color::Blue),
+                    )
+                    .with_note("Folder identifiers must be unique within the configuration")
+                    .finish()
+                    .print((&file.file_name, Source::from(&file.contents)))
+                    .unwrap();
+            }
+            ResolutionError::FolderNotFound(identifier, span) => {
+                Report::build(ReportKind::Error, (&file.file_name, span.clone()))
+                    .with_message(format!("Folder '{}' not found", identifier))
+                    .with_label(
+                        Label::new((&file.file_name, span.clone()))
+                            .with_message("Referenced here")
+                            .with_color(Color::Red),
+                    )
+                    .with_note("Make sure the folder is defined before being referenced")
+                    .finish()
+                    .print((&file.file_name, Source::from(&file.contents)))
+                    .unwrap();
+            }
+            ResolutionError::InvalidRegex(regex_error, span) => {
+                Report::build(ReportKind::Error, (&file.file_name, span.clone()))
+                    .with_message("Invalid regular expression")
+                    .with_label(
+                        Label::new((&file.file_name, span.clone()))
+                            .with_message(format!("Regex error: {}", regex_error))
+                            .with_color(Color::Red),
+                    )
+                    .finish()
+                    .print((&file.file_name, Source::from(&file.contents)))
+                    .unwrap();
+            }
+        }
     }
 }
 
