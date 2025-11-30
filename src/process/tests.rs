@@ -222,7 +222,7 @@ fn test_matcher_body_contains() {
 fn test_matcher_and_both_true() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
-    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+    let and_matcher = Matcher::And(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(and_matcher.matches(&message));
@@ -232,7 +232,7 @@ fn test_matcher_and_both_true() {
 fn test_matcher_and_first_false() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
-    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+    let and_matcher = Matcher::And(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(!and_matcher.matches(&message));
@@ -242,7 +242,7 @@ fn test_matcher_and_first_false() {
 fn test_matcher_and_second_false() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
-    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
+    let and_matcher = Matcher::And(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(!and_matcher.matches(&message));
@@ -252,7 +252,7 @@ fn test_matcher_and_second_false() {
 fn test_matcher_or_first_true() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("urgent".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
-    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+    let or_matcher = Matcher::Or(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(or_matcher.matches(&message));
@@ -262,7 +262,7 @@ fn test_matcher_or_first_true() {
 fn test_matcher_or_second_true() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
-    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+    let or_matcher = Matcher::Or(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(or_matcher.matches(&message));
@@ -272,7 +272,7 @@ fn test_matcher_or_second_true() {
 fn test_matcher_or_both_false() {
     let matcher1 = Matcher::Subject(StringMatcher::Contains("billing".to_string()));
     let matcher2 = Matcher::From(StringMatcher::Contains("different".to_string()));
-    let or_matcher = Matcher::Or(Box::new(matcher1), Box::new(matcher2));
+    let or_matcher = Matcher::Or(vec![matcher1, matcher2]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(!or_matcher.matches(&message));
@@ -302,8 +302,8 @@ fn test_matcher_nested_and_or() {
     let matcher2 = Matcher::From(StringMatcher::Contains("sender".to_string()));
     let matcher3 = Matcher::To(StringMatcher::Contains("recipient".to_string()));
 
-    let and_matcher = Matcher::And(Box::new(matcher1), Box::new(matcher2));
-    let nested_matcher = Matcher::Or(Box::new(and_matcher), Box::new(matcher3));
+    let and_matcher = Matcher::And(vec![matcher1, matcher2]);
+    let nested_matcher = Matcher::Or(vec![and_matcher, matcher3]);
 
     let message = create_fake_message("URGENT: Action Required");
     assert!(nested_matcher.matches(&message));
@@ -316,8 +316,8 @@ fn test_matcher_complex_nested_structure() {
     let sender_matcher = Matcher::Subject(StringMatcher::Contains("issues".to_string()));
 
     let not_billing = Matcher::Not(Box::new(billing_matcher));
-    let and_matcher = Matcher::And(Box::new(urgent_matcher), Box::new(not_billing));
-    let final_matcher = Matcher::Or(Box::new(and_matcher), Box::new(sender_matcher));
+    let and_matcher = Matcher::And(vec![urgent_matcher, not_billing]);
+    let final_matcher = Matcher::Or(vec![and_matcher, sender_matcher]);
 
     let message1 = create_fake_message("URGENT: Action Required");
     assert!(final_matcher.matches(&message1));
