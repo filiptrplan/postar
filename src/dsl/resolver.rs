@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ops::Range};
 
 use crate::{
-    dsl::ast::*,
+    dsl::{ast::*, error::DslError},
     inbox::Folder,
     process::{Action, Matcher, Rule, StringMatcher},
 };
@@ -16,6 +16,12 @@ pub enum ResolutionError {
 }
 
 type ResolutionResult<T> = Result<T, ResolutionError>;
+
+impl DslError for ResolutionError {
+    fn print_error(&self, file: &super::File) {
+        todo!()
+    }
+}
 
 pub struct Resolver {
     folders: HashMap<String, (Folder, Span)>,

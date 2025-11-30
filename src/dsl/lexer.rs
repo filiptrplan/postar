@@ -1,8 +1,10 @@
+use std::ops::Range;
+
 /// This modules handles lexing a file to tokens.
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use logos::{Logos, Span};
 
-use crate::dsl::File;
+use crate::dsl::{File, error::DslError};
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 #[logos(skip r"[ \t\n\f]+")]
@@ -108,18 +110,23 @@ impl Token {
     }
 }
 
-/// Prints the error to stdout using [ariadne]
-fn handle_error(file: &File, span: &Span) {
-    Report::build(ReportKind::Error, (&file.file_name, span.clone()))
-        .with_message("Syntax error.".to_string())
-        .with_label(
-            Label::new((&file.file_name, span.clone()))
-                .with_message("Error detected here")
-                .with_color(Color::Red),
-        )
-        .finish()
-        .print((&file.file_name, Source::from(&file.contents)))
-        .unwrap();
+pub struct SyntaxError {
+    span: Range<usize>,
+}
+
+impl DslError for SyntaxError {
+    fn print_error(&self, file: &File) {
+        Report::build(ReportKind::Error, (&file.file_name, self.span.clone()))
+            .with_message("Syntax error.".to_string())
+            .with_label(
+                Label::new((&file.file_name, self.span.clone()))
+                    .with_message("Error detected here")
+                    .with_color(Color::Red),
+            )
+            .finish()
+            .print((&file.file_name, Source::from(&file.contents)))
+            .unwrap();
+    }
 }
 
 /// Lexes the [File] given. Upon syntax error, it returns an [Err] and prints out the errors to
@@ -127,16 +134,15 @@ fn handle_error(file: &File, span: &Span) {
 /// spans.
 ///
 /// `file`: the [File] to be processed.
-pub fn process_tokens(file: &File) -> anyhow::Result<Vec<(Token, Span)>> {
+pub fn process_tokens(file: &File) -> Result<Vec<(Token, Span)>, Vec<impl DslError>> {
     let tokens = Token::lexer(&file.contents).spanned();
 
     let mut syntax_errors = tokens.clone().filter(|(res, _)| res.is_err()).peekable();
 
     if syntax_errors.peek().is_some() {
-        syntax_errors.for_each(|(_, span)| {
-            handle_error(file, &span);
-        });
-        return Err(anyhow::format_err!("Lexing failed."));
+        return Err(syntax_errors
+            .map(|(_, span)| SyntaxError { span })
+            .collect());
     }
 
     Ok(tokens

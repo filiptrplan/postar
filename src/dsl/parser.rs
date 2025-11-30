@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::dsl::{File, ast::*, lexer::Token};
+use crate::dsl::{File, ast::*, error::DslError, lexer::Token};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
     DefaultExpected, IterParser, Parser,
@@ -189,57 +189,6 @@ impl ParserError<'_> {
         }
     }
 
-    /// Prints the error to stdout using [ariadne].
-    ///
-    /// `file`: the [File] this error was generated for.
-    ///
-    /// `lexer_spans`: the [spans](logos::Span) that were generated along with the [tokens](Token)
-    /// in the function [process_tokens](crate::dsl::lexer::process_tokens)
-    ///
-    /// # Example
-    /// ```ignore
-    /// use postar::dsl::{File, lexer::process_tokens, parser::string_matcher};
-    /// let file = File {
-    ///     file_name: "test".to_string(),
-    ///     contents: "contains \"test\"".to_string(),
-    /// };
-    /// let tokens = process_tokens(&file);
-    /// if let Ok(tokens) = tokens {
-    ///     let (only_tokens, only_spans): (Vec<Token>, Vec<Span>) = tokens.into_iter().unzip();
-    ///     let res = string_matcher().parse(&only_tokens);
-    ///     dbg!(
-    ///         res.errors()
-    ///             .for_each(|err| err.print_error(&file, &only_spans)),
-    ///     );
-    /// }
-    /// ```
-    pub fn print_error(&self, file: &File, lexer_spans: &[logos::Span]) {
-        if let ParserError::CombinedError(e1, e2) = self {
-            e1.print_error(file, lexer_spans);
-            e2.print_error(file, lexer_spans);
-            return;
-        }
-        let span = self.to_lexer_span(lexer_spans);
-        let file_span = (&file.file_name, span);
-        let report = if let Some(report) = self.custom_error(file, lexer_spans) {
-            report
-        } else {
-            let mut report_builder = Report::build(ReportKind::Error, file_span.clone())
-                .with_label(
-                    Label::new(file_span.clone())
-                        .with_color(Color::Red)
-                        .with_message(self.message()),
-                );
-            if let Some(note) = self.note() {
-                report_builder = report_builder.with_note(note);
-            }
-            report_builder.finish()
-        };
-        report
-            .print((&file.file_name, Source::from(&file.contents)))
-            .unwrap();
-    }
-
     /// Defines a custom [ariadne report](ariadne::Report) for displaying more complex errors.
     fn custom_error<'a>(
         &self,
@@ -287,6 +236,36 @@ impl ParserError<'_> {
             }
             _ => None,
         }
+    }
+}
+
+impl DslError for ParserError<'_> {
+    fn print_error(&self, file: &File) {
+        let lexer_spans = file.lexer_spans.as_ref().unwrap();
+        if let ParserError::CombinedError(e1, e2) = self {
+            e1.print_error(file);
+            e2.print_error(file);
+            return;
+        }
+        let span = self.to_lexer_span(&lexer_spans);
+        let file_span = (&file.file_name, span);
+        let report = if let Some(report) = self.custom_error(file, &lexer_spans) {
+            report
+        } else {
+            let mut report_builder = Report::build(ReportKind::Error, file_span.clone())
+                .with_label(
+                    Label::new(file_span.clone())
+                        .with_color(Color::Red)
+                        .with_message(self.message()),
+                );
+            if let Some(note) = self.note() {
+                report_builder = report_builder.with_note(note);
+            }
+            report_builder.finish()
+        };
+        report
+            .print((&file.file_name, Source::from(&file.contents)))
+            .unwrap();
     }
 }
 
@@ -480,7 +459,7 @@ pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserAction>, Token
             Token::Ident(identifier) => Ok(ParserIdentifier { identifier }),
             _ => Err(ParserError::IdentifierMoveTo(span)),
         }))
-        .map(|ident| ParserAction::MoveTo(ident)),
+        .map(ParserAction::MoveTo),
     );
     spanned(
         choice((delete, moveto)).map_err_with_state(|err: ParserError<'a>, span: Span, _| {

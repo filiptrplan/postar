@@ -5,6 +5,7 @@ use crate::inbox::{Folder, Inbox, Message};
 #[cfg(test)]
 pub mod tests;
 
+#[derive(Debug)]
 pub enum Action {
     Delete,
     Move(Folder),
@@ -35,6 +36,7 @@ pub enum StringMatcher {
     Regex(regex::Regex),
 }
 
+#[derive(Debug)]
 pub struct Rule {
     name: String,
     matcher: Matcher,
