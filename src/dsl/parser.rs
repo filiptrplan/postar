@@ -13,7 +13,7 @@ use strum::EnumMessage;
 
 type Span = SimpleSpan<usize>;
 type TokenInput<'a> = &'a [Token];
-type TokenErr<'a> = extra::Err<ParserError<'a>>;
+type TokenErr<'a> = extra::Full<ParserError<'a>, extra::SimpleState<&'a [logos::Span]>, ()>;
 
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
 #[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
@@ -317,6 +317,24 @@ impl<'a> chumsky::label::LabelError<'a, TokenInput<'a>, DefaultExpected<'a, Toke
     }
 }
 
+/// Wraps the output type in an [crate::dsl::ast::Node] and automatically calculates the span
+pub fn spanned<'a, T, P>(
+    parser: P,
+) -> impl Parser<'a, TokenInput<'a>, Node<T>, TokenErr<'a>> + Clone
+where
+    P: Parser<'a, TokenInput<'a>, T, TokenErr<'a>> + Clone,
+{
+    parser.map_with(|node, extra| {
+        let token_span = extra.span();
+        let lexer_spans = extra.state();
+        let source_span = ParserError::span_to_lexer_span(token_span, lexer_spans);
+        Node {
+            value: node,
+            span: source_span,
+        }
+    })
+}
+
 /// ```ebnf
 /// string_matcher
 ///               = 'contains',  string
@@ -325,7 +343,7 @@ impl<'a> chumsky::label::LabelError<'a, TokenInput<'a>, DefaultExpected<'a, Toke
 ///               | 'regex',      string ;
 /// ```
 pub fn string_matcher<'a>()
--> impl Parser<'a, TokenInput<'a>, ParserStringMatcher, TokenErr<'a>> + Clone {
+-> impl Parser<'a, TokenInput<'a>, Node<ParserStringMatcher>, TokenErr<'a>> + Clone {
     let str_matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(any().try_map(|token, span| {
             Ok(match token {
@@ -334,12 +352,12 @@ pub fn string_matcher<'a>()
             })
         }))
     };
-    choice((
+    spanned(choice((
         str_matcher_keyword(Token::KwContains).map(ParserStringMatcher::Contains),
         str_matcher_keyword(Token::KwStartsWith).map(ParserStringMatcher::StartsWith),
         str_matcher_keyword(Token::KwEquals).map(ParserStringMatcher::Equals),
         str_matcher_keyword(Token::KwRegex).map(ParserStringMatcher::Regex),
-    ))
+    )))
 }
 
 /// ```ebnf
@@ -619,9 +637,7 @@ pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, ParserFolder, TokenErr<'a
 
 pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a>> {
     let definition = choice((
-        any().try_map(|token, span| {
-            Err(ParserError::TopLevelDefinition(span))
-        }),
+        any().try_map(|token, span| Err(ParserError::TopLevelDefinition(span))),
         folder().map(ParserDefinition::Folder),
         rule().map(ParserDefinition::Rule),
     ));
