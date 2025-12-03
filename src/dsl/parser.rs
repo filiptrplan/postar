@@ -406,8 +406,14 @@ pub fn matcher<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserMatcher>, Tok
         .or(not_matcher.clone()),
     );
 
-    not_matcher
-        .define((just(Token::KwNot).ignore_then(msg_matcher.clone())).or(msg_matcher.clone()));
+    not_matcher.define(
+        spanned(
+            just(Token::KwNot)
+                .ignore_then(msg_matcher.clone())
+                .map(|node: Node<ParserMatcher>| ParserMatcher::Not(Box::new(node))),
+        )
+        .or(msg_matcher.clone()),
+    );
 
     msg_matcher.define(
         spanned(choice((

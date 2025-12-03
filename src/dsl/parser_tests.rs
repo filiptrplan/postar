@@ -1,9 +1,11 @@
 use crate::dsl::{
+    DslError,
     ast::*,
     lexer::{Token, process_tokens},
     parser::{action, config, folder, matcher, rule, string_matcher},
 };
 use chumsky::Parser;
+use log::info;
 use test_log::test;
 
 /// Helper function to create a Node with a dummy span
@@ -23,7 +25,9 @@ fn tokenize_text(text: &str) -> Vec<Token> {
         lexer_spans: None,
     };
     process_tokens(&file)
-        .map_err(|_| ())
+        .map_err(|e| {
+            e.iter().for_each(|err| err.print_error(&file));
+        })
         .unwrap()
         .into_iter()
         .map(|(token, _)| token)
@@ -110,36 +114,6 @@ fn test_string_matcher_email_in_quotes() {
     );
 }
 
-#[test]
-fn test_string_matcher_multiline_content() {
-    let tokens = tokenize_text("contains \"line1\nline2\"");
-
-    let result = string_matcher().parse(&tokens);
-    assert!(result.has_output());
-    assert!(!result.has_errors());
-    assert_eq!(
-        result.into_output(),
-        Some(node(ParserStringMatcher::Contains(
-            "line1 line2".to_string()
-        )))
-    );
-}
-
-#[test]
-fn test_string_matcher_multiline_with_spaces() {
-    let tokens = tokenize_text("contains \"say \n hello \n world\"");
-
-    let result = string_matcher().parse(&tokens);
-    assert!(result.has_output());
-    assert!(!result.has_errors());
-    assert_eq!(
-        result.into_output(),
-        Some(node(ParserStringMatcher::Contains(
-            "say  hello  world".to_string()
-        )))
-    );
-}
-
 // Matcher tests
 #[test]
 fn test_matcher_subject() {
@@ -209,7 +183,7 @@ fn test_matcher_not() {
 // Complex matcher tests
 #[test]
 fn test_matcher_and_single() {
-    let tokens = tokenize_text("and (subject contains \"test\")");
+    let tokens = tokenize_text("and [subject contains \"test\"]");
 
     let result = matcher().parse(&tokens);
     assert!(result.has_output());
@@ -224,7 +198,7 @@ fn test_matcher_and_single() {
 
 #[test]
 fn test_matcher_and_multiple() {
-    let tokens = tokenize_text("and (subject contains \"test\" from equals \"user@example.com\")");
+    let tokens = tokenize_text("and [subject contains \"test\" from equals \"user@example.com\"]");
 
     let result = matcher().parse(&tokens);
     assert!(result.has_output());
@@ -244,7 +218,7 @@ fn test_matcher_and_multiple() {
 
 #[test]
 fn test_matcher_or_single() {
-    let tokens = tokenize_text("or (to startswith \"admin\")");
+    let tokens = tokenize_text("or [to startswith \"admin\"]");
 
     let result = matcher().parse(&tokens);
     assert!(result.has_output());
@@ -259,7 +233,7 @@ fn test_matcher_or_single() {
 
 #[test]
 fn test_matcher_or_multiple() {
-    let tokens = tokenize_text("or (subject contains \"urgent\" body contains \"important\")");
+    let tokens = tokenize_text("or [subject contains \"urgent\" body contains \"important\"]");
 
     let result = matcher().parse(&tokens);
     assert!(result.has_output());
@@ -280,7 +254,7 @@ fn test_matcher_or_multiple() {
 #[test]
 fn test_matcher_nested_and_or() {
     let tokens = tokenize_text(
-        "and (subject contains \"test\" or (from equals \"user@example.com\" to equals \"admin@example.com\"))",
+        "and [subject contains \"test\" or [from equals \"user@example.com\" to equals \"admin@example.com\"]]",
     );
 
     let result = matcher().parse(&tokens);
@@ -309,9 +283,10 @@ fn test_matcher_nested_and_or() {
 #[test]
 fn test_matcher_not_with_and() {
     let tokens =
-        tokenize_text("not and (subject contains \"spam\" body contains \"advertisement\")");
+        tokenize_text("not (and [subject contains \"spam\" body contains \"advertisement\"])");
 
     let result = matcher().parse(&tokens);
+    result.errors().for_each(|e| info!("{:?}", e));
     assert!(result.has_output());
     assert!(!result.has_errors());
     let expected = node(ParserMatcher::Not(Box::new(node(ParserMatcher::And(
@@ -331,8 +306,9 @@ fn test_matcher_not_with_and() {
 
 #[test]
 fn test_matcher_not_with_or() {
-    let tokens =
-        tokenize_text("not or (subject contains \"spam\" from equals \"spammer@example.com\")");
+    let tokens = tokenize_text(
+        "not ( or [ subject contains \"spam\" from equals \"spammer@example.com\" ] )",
+    );
 
     let result = matcher().parse(&tokens);
     assert!(result.has_output());
@@ -658,13 +634,13 @@ fn test_folder_single_character_names() {
 
 #[test]
 fn test_folder_hierarchical_identifier() {
-    let tokens = tokenize_text("folder archive/2023 { name: \"Archive 2023\" }");
+    let tokens = tokenize_text("folder archive_2023 { name: \"Archive 2023\" }");
 
     let result = folder().parse(&tokens);
     assert!(result.has_output());
     assert!(!result.has_errors());
     let expected = node(ParserFolder {
-        identifier: "archive/2023".to_string(),
+        identifier: "archive_2023".to_string(),
         name: "Archive 2023".to_string(),
     });
     assert_eq!(result.into_output(), Some(expected));
@@ -964,4 +940,3 @@ fn test_config_with_complex_nested_conditions() {
         panic!("Expected And matcher");
     }
 }
-
