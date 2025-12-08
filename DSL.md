@@ -41,7 +41,7 @@ The grammar is written in [EBNF](https://en.wikipedia.org/wiki/Extended_Backus%E
 
 To not waste space in the grammar, we define some of the productions with words:
 
-- `string`: A string as defined by [RFC8259](https://datatracker.ietf.org/doc/html/rfc8259#section-7)(JSON RFC).
+- `string`: A string as defined by [RFC8259](https://datatracker.ietf.org/doc/html/rfc8259#section-7)(JSON RFC). Except we don't support multiline strings.
 - `alpha_lower`: Any lowercase ASCII alphabetic character (`a-z`)
 - `digit`: A digit (`0-9`)
 

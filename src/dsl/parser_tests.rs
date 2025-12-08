@@ -875,6 +875,722 @@ fn test_config_complex_rules() {
     assert_eq!(result.into_output(), Some(expected));
 }
 
+// Complex integration tests for advanced configurations and edge cases
+
+#[test]
+fn test_config_deeply_nested_logic() {
+    // Test complex nested logic with multiple levels of and/or/not
+    let tokens = tokenize_text(
+        "folder priority { name: \"Priority\" } \
+         folder archive { name: \"Archive\" } \
+         rule complex_nested { \
+           matcher: and [ \
+               or [ \
+                   and [ \
+                       subject contains \"urgent\" \
+                       not from contains \"spam@\" \
+                   ] \
+                   or [ \
+                       body regex \"\\[ASAP\\]\" \
+                       to equals \"team@company.com\" \
+                   ] \
+               ] \
+               not or [ \
+                   subject equals \"test\" \
+                   from contains \"newsletter\" \
+               ] \
+           ] \
+           action: moveto [priority] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 1);
+
+    let rule = &config.rule_definitions[0].value;
+    assert_eq!(rule.name, "complex_nested");
+
+    // Verify the complex nested structure
+    if let ParserMatcher::And(and_list) = &rule.matcher.value {
+        assert_eq!(and_list.value.list.len(), 2);
+
+        // First condition: or [ and [ subject contains "urgent" not from contains "spam@" ] or [ body regex "[ASAP]" to equals "team@company.com" ] ]
+        if let ParserMatcher::Or(or_list) = &and_list.value.list[0].value {
+            assert_eq!(or_list.value.list.len(), 2);
+        } else {
+            panic!("Expected Or matcher as first condition");
+        }
+
+        // Second condition: not or [ subject equals "test" from contains "newsletter" ]
+        if let ParserMatcher::Not(not_box) = &and_list.value.list[1].value {
+            if let ParserMatcher::Or(or_list) = &not_box.value {
+                assert_eq!(or_list.value.list.len(), 2);
+            } else {
+                panic!("Expected Or matcher inside Not");
+            }
+        } else {
+            panic!("Expected Not matcher as second condition");
+        }
+    } else {
+        panic!("Expected And matcher at top level");
+    }
+}
+
+#[test]
+fn test_config_edge_case_regex_patterns() {
+    // Test complex regex patterns with special characters
+    let tokens = tokenize_text(
+        "folder patterns { name: \"Pattern Tests\" } \
+         rule regex_special_chars { \
+           matcher: subject regex \"\\b\\w+@\\w+\\.\\w+\\b\" \
+           action: moveto [patterns] \
+         } \
+         rule regex_complex_pattern { \
+           matcher: body regex \"\\[(?:urgent|critical|important)\\]\\s*\\{[^}]*\\}\" \
+           action: moveto [patterns] \
+         } \
+         rule regex_with_escaped_chars { \
+           matcher: from regex \".*\\\\[.*\\\\]@example\\\\.com\" \
+           action: moveto [patterns] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify regex patterns are preserved correctly
+    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value {
+        if let ParserStringMatcher::Regex(pattern) = &string_matcher.value {
+            assert_eq!(pattern, "\\b\\w+@\\w+\\.\\w+\\b");
+        } else {
+            panic!("Expected Regex string matcher");
+        }
+    } else {
+        panic!("Expected Subject matcher");
+    }
+}
+
+#[test]
+fn test_config_potentially_ambiguous_matching() {
+    // Test configurations that could be ambiguous or have subtle precedence issues
+    let tokens = tokenize_text(
+        "folder work { name: \"Work\" } \
+         folder personal { name: \"Personal\" } \
+         rule ambiguous_case_1 { \
+           matcher: and [ \
+               or [ subject contains \"work\" subject contains \"project\" ] \
+               not or [ from contains \"personal\" to contains \"personal\" ] \
+           ] \
+           action: moveto [work] \
+         } \
+         rule ambiguous_case_2 { \
+           matcher: or [ \
+               and [ subject contains \"invoice\" from contains \"@company.com\" ] \
+               and [ body regex \"\\$\\d+\" to equals \"finance@company.com\" ] \
+           ] \
+           action: moveto [personal] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 2);
+    assert_eq!(config.folder_definitions.len(), 2);
+
+    // Verify complex structure was parsed correctly
+    let rule1 = &config.rule_definitions[0].value;
+    let rule2 = &config.rule_definitions[1].value;
+
+    assert_eq!(rule1.name, "ambiguous_case_1");
+    assert_eq!(rule2.name, "ambiguous_case_2");
+}
+
+#[test]
+fn test_config_empty_and_single_element_lists() {
+    // Test edge cases with match lists
+    let tokens = tokenize_text(
+        "folder test { name: \"Test\" } \
+         rule empty_logical_operators { \
+           matcher: and [ subject contains \"test\" ] \
+           action: moveto [test] \
+         } \
+         rule single_or { \
+           matcher: or [ body regex \".*\" ] \
+           action: moveto [test] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 2);
+
+    // Verify single-element match lists are handled correctly
+    if let ParserMatcher::And(and_list) = &config.rule_definitions[0].value.matcher.value {
+        assert_eq!(and_list.value.list.len(), 1);
+    } else {
+        panic!("Expected And matcher");
+    }
+
+    if let ParserMatcher::Or(or_list) = &config.rule_definitions[1].value.matcher.value {
+        assert_eq!(or_list.value.list.len(), 1);
+    } else {
+        panic!("Expected Or matcher");
+    }
+}
+
+#[test]
+fn test_config_parentheses_grouping() {
+    // Test complex parentheses grouping
+    let tokens = tokenize_text(
+        "folder grouped { name: \"Grouped\" } \
+         rule complex_grouping { \
+           matcher: and [ \
+               ( or [ subject contains \"A\" subject contains \"B\" ] ) \
+               ( not ( and [ from contains \"spam\" body contains \"advertisement\" ] ) ) \
+               ( subject contains \"important\" ) \
+           ] \
+           action: moveto [grouped] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 1);
+
+    // Verify parentheses were handled correctly
+    if let ParserMatcher::And(and_list) = &config.rule_definitions[0].value.matcher.value {
+        assert_eq!(and_list.value.list.len(), 3);
+    } else {
+        panic!("Expected And matcher");
+    }
+}
+
+#[test]
+fn test_config_duplicated_folder_and_rule_names() {
+    // Test multiple folders and rules with similar names
+    let tokens = tokenize_text(
+        "folder inbox { name: \"Main Inbox\" } \
+         folder inbox_test { name: \"Test Inbox\" } \
+         folder inbox_backup { name: \"Backup Inbox\" } \
+         rule inbox_spam { matcher: subject contains \"spam\" action: delete } \
+         rule inbox_important { matcher: from equals \"boss@company.com\" action: moveto [inbox] } \
+         rule inbox_newsletter { matcher: from contains \"newsletter\" action: moveto [inbox_test] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.folder_definitions.len(), 3);
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify similar but distinct names are parsed correctly
+    let folder_names: Vec<_> = config.folder_definitions.iter()
+        .map(|f| &f.value.identifier)
+        .collect();
+    assert_eq!(folder_names, vec!["inbox", "inbox_test", "inbox_backup"]);
+
+    let rule_names: Vec<_> = config.rule_definitions.iter()
+        .map(|r| &r.value.name)
+        .collect();
+    assert_eq!(rule_names, vec!["inbox_spam", "inbox_important", "inbox_newsletter"]);
+}
+
+#[test]
+fn test_config_special_characters_in_strings() {
+    // Test strings with various special characters and escape sequences
+    let tokens = tokenize_text(
+        "folder special { name: \"Special Chars\" } \
+         rule special_chars_1 { \
+           matcher: subject contains \"Hello \\\"World\\\"! @#$%^&*()\" \
+           action: moveto [special] \
+         } \
+         rule special_chars_2 { \
+           matcher: body contains \"Line 1\\nLine 2\\tTabbed\\rCarriage return\" \
+           action: moveto [special] \
+         } \
+         rule special_chars_3 { \
+           matcher: from equals \"user+tag@example.com\" \
+           action: moveto [special] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify special characters are handled correctly (they should be normalized)
+    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value {
+        if let ParserStringMatcher::Contains(content) = &string_matcher.value {
+            assert!(content.contains("Hello"));
+            assert!(content.contains("World"));
+        } else {
+            panic!("Expected Contains string matcher");
+        }
+    } else {
+        panic!("Expected Subject matcher");
+    }
+}
+
+#[test]
+fn test_config_large_configuration() {
+    // Test a large configuration with many rules and folders to stress test the parser
+    let mut config_text = String::new();
+
+    // Create 10 folders
+    for i in 0..10 {
+        config_text.push_str(&format!("folder folder_{i} {{ name: \"Folder {}\" }} ", i));
+    }
+
+    // Create 20 rules with varying complexity
+    for i in 0..20 {
+        let folder_idx = i % 10;
+        if i % 3 == 0 {
+            config_text.push_str(&format!(
+                "rule rule_{} {{ matcher: subject contains \"test_{}\" action: delete }} ",
+                i, i
+            ));
+        } else if i % 3 == 1 {
+            config_text.push_str(&format!(
+                "rule rule_{} {{ matcher: from equals \"user{}@example.com\" action: moveto [folder_{}] }} ",
+                i, i, folder_idx
+            ));
+        } else {
+            config_text.push_str(&format!(
+                "rule rule_{} {{ matcher: or [ subject contains \"urgent_{}\" body regex \"pattern_{}\" ] action: moveto [folder_{}] }} ",
+                i, i, i, folder_idx
+            ));
+        }
+    }
+
+    let tokens = tokenize_text(&config_text);
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.folder_definitions.len(), 10);
+    assert_eq!(config.rule_definitions.len(), 20);
+}
+
+// Tests for subtle edge cases and potential bugs
+
+#[test]
+fn test_config_multiple_not_operators() {
+    // Test chained not operators: not not not subject contains "test"
+    let tokens = tokenize_text(
+        "folder test { name: \"Test\" } \
+         rule triple_not { \
+           matcher: not not not subject contains \"test\" \
+           action: moveto [test] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 1);
+
+    // Verify triple nested Not structure
+    let rule = &config.rule_definitions[0].value;
+    if let ParserMatcher::Not(not1) = &rule.matcher.value {
+        if let ParserMatcher::Not(not2) = &not1.value {
+            if let ParserMatcher::Not(not3) = &not2.value {
+                if let ParserMatcher::Subject(_) = &not3.value {
+                    // Triple nested Not is correct
+                } else {
+                    panic!("Expected Subject matcher at deepest level");
+                }
+            } else {
+                panic!("Expected third Not operator");
+            }
+        } else {
+            panic!("Expected second Not operator");
+        }
+    } else {
+        panic!("Expected first Not operator");
+    }
+}
+
+#[test]
+fn test_config_deeply_parenthesized_logic() {
+    // Test deeply nested parentheses that could confuse precedence
+    let tokens = tokenize_text(
+        "folder deep { name: \"Deep\" } \
+         rule deep_parens { \
+           matcher: ( ( ( ( subject contains \"deep\" ) ) ) ) \
+           action: moveto [deep] \
+         } \
+         rule mixed_parens { \
+           matcher: and [ \
+               ( subject contains \"outer\" ) \
+               ( not ( or [ from equals \"inner\" to equals \"inner\" ] ) ) \
+               ( ( body contains \"nested\" ) ) \
+           ] \
+           action: moveto [deep] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 2);
+}
+
+#[test]
+fn test_config_contradictory_logic() {
+    // Test rules that contain contradictory logic (should still parse correctly)
+    let tokens = tokenize_text(
+        "folder logic { name: \"Logic Tests\" } \
+         rule contradiction_1 { \
+           matcher: and [ \
+               subject contains \"test\" \
+               not subject contains \"test\" \
+           ] \
+           action: moveto [logic] \
+         } \
+         rule contradiction_2 { \
+           matcher: or [ \
+               subject equals \"exact\" \
+               subject equals \"different\" \
+           ] \
+           action: moveto [logic] \
+         } \
+         rule always_false { \
+           matcher: and [ \
+               subject equals \"impossible\" \
+               not subject equals \"impossible\" \
+           ] \
+           action: moveto [logic] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify the contradictory logic is parsed correctly
+    let rule1 = &config.rule_definitions[0].value;
+    if let ParserMatcher::And(and_list) = &rule1.matcher.value {
+        assert_eq!(and_list.value.list.len(), 2);
+    } else {
+        panic!("Expected And matcher");
+    }
+}
+
+#[test]
+fn test_config_empty_strings_and_whitespace() {
+    // Test edge cases with empty strings and various whitespace combinations
+    let tokens = tokenize_text(
+        "folder empty { name: \"\" } \
+         rule empty_match { \
+           matcher: subject contains \"\" \
+           action: moveto [empty] \
+         } \
+         rule whitespace_test { \
+           matcher: body contains \"   \" \
+           action: moveto [empty] \
+         } \
+         rule exact_empty { \
+           matcher: from equals \"\" \
+           action: moveto [empty] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.folder_definitions.len(), 1);
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify empty string cases
+    let folder = &config.folder_definitions[0].value;
+    assert_eq!(folder.name, "");
+
+    let rule1 = &config.rule_definitions[0].value;
+    if let ParserMatcher::Subject(string_matcher) = &rule1.matcher.value {
+        if let ParserStringMatcher::Contains(content) = &string_matcher.value {
+            assert_eq!(content, "");
+        } else {
+            panic!("Expected Contains with empty string");
+        }
+    } else {
+        panic!("Expected Subject matcher");
+    }
+}
+
+#[test]
+fn test_config_complex_identifier_patterns() {
+    // Test various edge case identifier patterns
+    let tokens = tokenize_text(
+        "folder a { name: \"Single Letter\" } \
+         folder folder_123_456 { name: \"Numbers and Underscores\" } \
+         folder test_a_b_c { name: \"Multiple Underscores\" } \
+         rule rule_1 { matcher: subject contains \"test\" action: delete } \
+         rule rule_2 { matcher: from equals \"test@example.com\" action: moveto [a] } \
+         rule rule_3 { matcher: body regex \".*\" action: moveto [folder_123_456] }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.folder_definitions.len(), 3);
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify identifier patterns are handled correctly
+    let folder_ids: Vec<_> = config.folder_definitions.iter()
+        .map(|f| &f.value.identifier)
+        .collect();
+    assert_eq!(folder_ids, vec!["a", "folder_123_456", "test_a_b_c"]);
+}
+
+#[test]
+fn test_config_unicode_and_special_chars() {
+    // Test unicode characters and special character handling
+    let tokens = tokenize_text(
+        "folder unicode { name: \"Unicode Test\" } \
+         rule unicode_subject { \
+           matcher: subject contains \"Café Münster résumé\" \
+           action: moveto [unicode] \
+         } \
+         rule emoji_test { \
+           matcher: body contains \"🚨 urgent ⚠️ important 📧\" \
+           action: moveto [unicode] \
+         } \
+         rule special_chars { \
+           matcher: from equals \"test+tag@example.co.uk\" \
+           action: moveto [unicode] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify unicode handling
+    let rule1 = &config.rule_definitions[0].value;
+    if let ParserMatcher::Subject(string_matcher) = &rule1.matcher.value {
+        if let ParserStringMatcher::Contains(content) = &string_matcher.value {
+            assert!(content.contains("Café"));
+            assert!(content.contains("Münster"));
+        } else {
+            panic!("Expected Contains with unicode");
+        }
+    } else {
+        panic!("Expected Subject matcher");
+    }
+}
+
+#[test]
+fn test_config_very_long_strings() {
+    // Test with very long strings to test parser limits
+    let long_string = "a".repeat(1000);
+    let very_long_string = "x".repeat(10000);
+
+    let tokens = tokenize_text(&format!(
+        "folder long_strings {{ name: \"Long String Tests\" }} \
+         rule long_subject {{ \
+           matcher: subject contains \"{}\" \
+           action: moveto [long_strings] \
+         }} \
+         rule very_long_body {{ \
+           matcher: body contains \"{}\" \
+           action: moveto [long_strings] \
+         }}",
+        long_string, very_long_string
+    ));
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 2);
+}
+
+// Tests for conflicting rules and ambiguous parsing scenarios
+#[test]
+fn test_config_similar_rule_names() {
+    // Test rules with very similar names that could cause confusion
+    let tokens = tokenize_text(
+        "folder similar { name: \"Similar Names\" } \
+         rule spam { matcher: subject contains \"spam\" action: delete } \
+         rule spam2 { matcher: subject contains \"spam2\" action: delete } \
+         rule spam_b { matcher: subject contains \"spam_b\" action: delete } \
+         rule sp_am { matcher: subject contains \"sp_am\" action: delete }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 4);
+
+    let rule_names: Vec<_> = config.rule_definitions.iter()
+        .map(|r| &r.value.name)
+        .collect();
+    assert_eq!(rule_names, vec!["spam", "spam2", "spam_b", "sp_am"]);
+}
+
+#[test]
+fn test_config_recursive_logic_patterns() {
+    // Test patterns that could suggest recursive logic
+    let tokens = tokenize_text(
+        "folder recursive { name: \"Recursive Logic\" } \
+         rule nested_deep { \
+           matcher: and [ \
+               subject contains \"level1\" \
+               and [ \
+                   subject contains \"level2\" \
+                   and [ \
+                       subject contains \"level3\" \
+                       and [ subject contains \"level4\" ] \
+                   ] \
+               ] \
+           ] \
+           action: moveto [recursive] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 1);
+
+    // Verify deeply nested and structure
+    let rule = &config.rule_definitions[0].value;
+    if let ParserMatcher::And(and_list) = &rule.matcher.value {
+        assert_eq!(and_list.value.list.len(), 2);
+    } else {
+        panic!("Expected And matcher");
+    }
+}
+
+#[test]
+fn test_config_performance_edge_cases() {
+    // Test configurations that might stress the parser
+    let mut config_text = String::new();
+    config_text.push_str("folder perf { name: \"Performance Test\" } ");
+
+    // Create a rule with many conditions
+    config_text.push_str("rule performance_test { matcher: and [ ");
+    for i in 0..50 {
+        config_text.push_str(&format!("subject contains \"test_{}\" ", i));
+    }
+    config_text.push_str("] action: delete }");
+
+    let tokens = tokenize_text(&config_text);
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 1);
+
+    // Verify all conditions were parsed
+    let rule = &config.rule_definitions[0].value;
+    if let ParserMatcher::And(and_list) = &rule.matcher.value {
+        assert_eq!(and_list.value.list.len(), 50);
+    } else {
+        panic!("Expected And matcher with many conditions");
+    }
+}
+
+#[test]
+fn test_config_edge_case_regex_validation() {
+    // Test regex patterns that might be problematic
+    let tokens = tokenize_text(
+        "folder regex_edge { name: \"Regex Edge Cases\" } \
+         rule greedy_regex { \
+           matcher: subject regex \".*\" \
+           action: moveto [regex_edge] \
+         } \
+         rule empty_regex { \
+           matcher: from regex \"\" \
+           action: moveto [regex_edge] \
+         } \
+         rule complex_regex { \
+           matcher: body regex \"^(?=.*\\burgent\\b)(?=.*\\bimportant\\b).*$\" \
+           action: moveto [regex_edge] \
+         }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.rule_definitions.len(), 3);
+
+    // Verify regex patterns are preserved exactly
+    let rule2 = &config.rule_definitions[1].value;
+    if let ParserMatcher::From(string_matcher) = &rule2.matcher.value {
+        if let ParserStringMatcher::Regex(pattern) = &string_matcher.value {
+            assert_eq!(pattern, "");
+        } else {
+            panic!("Expected Regex with empty string");
+        }
+    } else {
+        panic!("Expected From matcher");
+    }
+}
+
+#[test]
+fn test_config_whitespace_variations() {
+    // Test various whitespace patterns
+    let tokens = tokenize_text(
+        "folder    spaced    {    name:    \"Spaced\"    } \
+         rule\ttabbed\t{\tmatcher:\tsubject\tcontains\t\"tab\"\taction:\tdelete\t} \
+         rule    mixed    spaces    and    tabs    {    matcher:body    contains    \"mixed\"    action:    delete    }",
+    );
+
+    let result = config().parse(&tokens);
+    assert!(result.has_output());
+    assert!(!result.has_errors());
+
+    let config = result.into_output().unwrap();
+    assert_eq!(config.folder_definitions.len(), 1);
+    assert_eq!(config.rule_definitions.len(), 2);
+}
+
 // Integration tests
 #[test]
 fn test_config_full_example() {
