@@ -24,6 +24,17 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 - [x] configuration for different imap servers
 - [ ] refactor the API so as not to use with_select but use something like
       ensure_select
+- [x] ability to login to IMAP email inboxes
+- [x] ability to move emails to different folders
+- [x] ability to delete emails
+- [x] DSL
+  - [x] AST
+  - [x] logos lexer
+    - [x] https://docs.rs/logos/latest/logos/struct.Lexer.html#method.spanned
+  - [x] chumsky parser
+    - [x] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
+  - [x] Ariadne error reporting
+- [ ] detecting new emails
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
