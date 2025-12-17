@@ -29,11 +29,24 @@ pub trait Inbox {
 
     /// Deletes a message from the containing folder (that is stored in the [Message] struct).
     fn delete_message(&mut self, message: &mut Message) -> anyhow::Result<()>;
+
+    /// Polls for new messages and blocks until new messages are available. Returns a vector of the
+    /// new messages.
+    ///
+    /// Currently this function only guarantees to return messages that were received while this
+    /// program was running, not the actualy unseen messages.
+    fn poll_new_messages(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>>;
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub struct Folder {
     pub name: String,
+}
+
+impl Folder {
+    pub fn new(name: String) -> Self {
+        Folder { name }
+    }
 }
 
 #[self_referencing(pub_extras)]

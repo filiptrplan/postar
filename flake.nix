@@ -31,6 +31,8 @@
           with pkgs;
           mkShell {
             buildInputs = [
+              mailutils
+              just
               openssl
               pkg-config
               eza

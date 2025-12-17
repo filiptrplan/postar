@@ -10,7 +10,7 @@ chrono = "0.4.42"
 chumsky = "0.11.2"
 clap = { version = "4.5.53", features = ["derive"] }
 imap = "2.4.1"
-imap-proto = "0.16.2"
+imap-proto = "^0.10"
 log = "0.4.28"
 logos = "0.15.1"
 mail-parser = "0.11.1"

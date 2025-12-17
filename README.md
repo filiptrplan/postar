@@ -7,22 +7,22 @@ A local email filtering service.
 > **AI Disclosure**: AI coding tools have been involved in the making of this
 > project, but **only** in writing tests. All other bussiness logic is 100% human-made.
 
+## Polling strategy
+
+IMAP is a sequential protocol, so synchronous operations are the way to go. UIDs
+are preserved within a session and the operations are sequential, you must wait
+for a response.
+
+Therefore, we will have a single thread that sequentially first polls for messages
+and then handles them one-by-one. Later, if we have more complicated processing
+logic, we will maybe have async handlers for stuff like LLM integration.
+
 ## TODO
 
-- [x] ability to login to IMAP email inboxes
-- [x] ability to move emails to different folders
-- [x] ability to delete emails
-- [ ] DSL
-  - [ ] AST
-  - [ ] logos lexer
-    - [ ] https://docs.rs/logos/latest/logos/struct.Lexer.html#method.spanned
-  - [ ] chumsky parser
-    - [ ] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
-  - [ ] Ariadne error reporting
 - [ ] detecting new emails
+  - [ ] save last seen uid
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
-- [ ] a nice config language to enable user configuration
 - [ ] documentation AND man pages!
 - [ ] hot-reload of config!!
 - [ ] notifications for moved emails
