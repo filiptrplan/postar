@@ -6,6 +6,6 @@ send-email recipient="user@example.com" subject="Test Mail" body="Hello from foo
     echo "{{body}}" | mail -s "{{subject}}" --mailer="smtp://foo:a@localhost:3025" -r foo@example.com {{recipient}}
 
 cleanup-greenmail:
-  docker ps -a --format '{{.ID}} {{.Image}}' | grep 'greenmail' | awk '{print $1}' | xargs docker rm -f
+  docker ps -a --format '{{"{{"}}.ID}} {{"{{"}}.Image}}' | grep 'greenmail' | awk '{print $1}' | xargs docker rm -f
 
 
