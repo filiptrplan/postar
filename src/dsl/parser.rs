@@ -646,7 +646,7 @@ pub fn folder<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserFolder>, Token
 
 pub fn config<'a>() -> impl Parser<'a, TokenInput<'a>, ParserConfig, TokenErr<'a>> {
     let definition = choice((
-        any().try_map(|token, span| Err(ParserError::TopLevelDefinition(span))),
+        any().try_map(|_token, span| Err(ParserError::TopLevelDefinition(span))),
         folder().map(ParserDefinition::Folder),
         rule().map(ParserDefinition::Rule),
     ));

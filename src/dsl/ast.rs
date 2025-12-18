@@ -3,7 +3,7 @@ use std::ops::Range;
 use crate::{
     // dsl::name_resolver::{self, NameResolver},
     dsl::resolver::{ResolutionError, Resolve, Resolver},
-    process::{Action, Rule},
+    process::Rule,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
