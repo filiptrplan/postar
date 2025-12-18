@@ -6,6 +6,28 @@ use crate::test_helpers::{
     find_folder_contains, find_folder_equals, get_container, get_mock_email_dir,
 };
 
+/// Helper function to send an email with proper type handling
+async fn send_test_email(
+    container_data: &crate::test_helpers::IMAPContainerData,
+    from_name: &str,
+    from_email: &str,
+    to_name: &str,
+    to_email: &str,
+    subject: &str,
+    body: &str,
+) -> anyhow::Result<()> {
+    container_data
+        .send_email(
+            mail_send::mail_builder::MessageBuilder::new()
+                .from((from_name, from_email))
+                .to((to_name, to_email))
+                .subject(subject)
+                .text_body(body),
+        )
+        .await?;
+    Ok(())
+}
+
 #[tokio::test]
 #[test_log::test]
 async fn test_send_email() -> anyhow::Result<()> {
@@ -15,15 +37,16 @@ async fn test_send_email() -> anyhow::Result<()> {
 
     let initial_emails = inbox.fetch_messages_in_folder(&folder)?;
 
-    container_data
-        .send_email(
-            mail_send::mail_builder::MessageBuilder::new()
-                .from(("foo", "foo@example.com"))
-                .to(("bar", "bar@example.com"))
-                .subject("This is a test.")
-                .text_body("This is the text body."),
-        )
-        .await?;
+    send_test_email(
+        &container_data,
+        "foo",
+        "foo@example.com",
+        "bar",
+        "bar@example.com",
+        "This is a test.",
+        "This is the text body.",
+    )
+    .await?;
 
     let after_emails = inbox.fetch_messages_in_folder(&folder)?;
 
@@ -959,30 +982,35 @@ async fn test_poll_new_messages_receives_sent_email() -> anyhow::Result<()> {
     // We need to trigger the poll in a separate task because it's blocking
     let mut poll_inbox = container_data.create_inbox()?;
     let poll_folder = folder.clone();
-    
-    let handle = tokio::task::spawn_blocking(move || {
-        poll_inbox.poll_new_messages(&poll_folder)
-    });
+
+    let handle = tokio::task::spawn_blocking(move || poll_inbox.poll_new_messages(&poll_folder));
 
     // Wait a bit to ensure the poll has started
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     // Send an email that should be picked up by the poll
-    container_data
-        .send_email(
-            mail_send::mail_builder::MessageBuilder::new()
-                .from(("sender", "sender@example.com"))
-                .to(("bar", "bar@example.com"))
-                .subject("Poll Test")
-                .text_body("Testing poll_new_messages"),
-        )
-        .await?;
+    send_test_email(
+        &container_data,
+        "sender",
+        "sender@example.com",
+        "bar",
+        "bar@example.com",
+        "Poll Test",
+        "Testing poll_new_messages",
+    )
+    .await?;
 
-    let result = handle.await??;
+    // Wait for the poll with a 5-second timeout
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), handle).await???;
 
-    assert!(!result.is_empty(), "Poll should have returned at least one message");
     assert!(
-        result.iter().any(|m| m.subject().unwrap_or_default() == "Poll Test"),
+        !result.is_empty(),
+        "Poll should have returned at least one message"
+    );
+    assert!(
+        result
+            .iter()
+            .any(|m| m.subject().unwrap_or_default() == "Poll Test"),
         "The polled email should have the correct subject"
     );
 
@@ -998,29 +1026,39 @@ async fn test_poll_new_messages_blocks_until_arrival() -> anyhow::Result<()> {
 
     let mut poll_inbox = container_data.create_inbox()?;
     let poll_folder = folder.clone();
-    
-    let handle = tokio::task::spawn_blocking(move || {
-        poll_inbox.poll_new_messages(&poll_folder)
-    });
+
+    let handle = tokio::task::spawn_blocking(move || poll_inbox.poll_new_messages(&poll_folder));
 
     // Ensure it's still polling after 2 seconds
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-    assert!(!handle.is_finished(), "Poll should still be blocking on empty folder");
-
-    container_data
-        .send_email(
-            mail_send::mail_builder::MessageBuilder::new()
-                .from(("sender", "sender@example.com"))
-                .to(("bar", "bar@example.com"))
-                .subject("Delayed Arrival")
-                .text_body("Triggering the poll"),
-        )
-        .await?;
-
-    let result = handle.await??;
-    assert!(!result.is_empty(), "Poll should have returned at least one message");
     assert!(
-        result.iter().any(|m| m.subject().unwrap_or_default() == "Delayed Arrival"),
+        !handle.is_finished(),
+        "Poll should still be blocking on empty folder"
+    );
+
+    send_test_email(
+        &container_data,
+        "sender",
+        "sender@example.com",
+        "bar",
+        "bar@example.com",
+        "Delayed Arrival",
+        "Triggering poll",
+    )
+    .await?;
+
+    container_data.print_container_logs().await;
+
+    // Wait for the poll with a 5-second timeout
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), handle).await???;
+    assert!(
+        !result.is_empty(),
+        "Poll should have returned at least one message"
+    );
+    assert!(
+        result
+            .iter()
+            .any(|m| m.subject().unwrap_or_default() == "Delayed Arrival"),
         "The polled email should have the correct subject"
     );
 
@@ -1036,26 +1074,31 @@ async fn test_poll_new_messages_multiple_messages_single_poll() -> anyhow::Resul
 
     // Get initial message count
     let initial_messages = inbox.fetch_messages_in_folder(&folder)?;
-    let initial_count = initial_messages.len();
+    let _initial_count = initial_messages.len();
 
     // Send multiple emails rapidly before starting the poll
     for i in 0..3 {
-        container_data
-            .send_email(
-                mail_send::mail_builder::MessageBuilder::new()
-                    .from(("sender", &format!("sender{}@example.com", i)))
-                    .to(("bar", "bar@example.com"))
-                    .subject(&format!("Multiple Poll Test {}", i))
-                    .text_body(&format!("Testing multiple messages {}", i)),
-            )
-            .await?;
+        send_test_email(
+            &container_data,
+            "sender",
+            &format!("sender{}@example.com", i).as_str(),
+            "bar",
+            "bar@example.com",
+            &format!("Multiple Poll Test {}", i),
+            &format!("Testing multiple messages {}", i),
+        )
+        .await?;
     }
 
     // Poll should return all new messages in a single call
     let mut poll_inbox = container_data.create_inbox()?;
     let poll_folder = folder.clone();
 
-    let result = poll_inbox.poll_new_messages(&poll_folder)?;
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
+        poll_inbox.poll_new_messages(&poll_folder)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Timeout waiting for messages: {}", e))??;
 
     assert!(!result.is_empty(), "Poll should have returned messages");
     assert_eq!(
@@ -1068,8 +1111,11 @@ async fn test_poll_new_messages_multiple_messages_single_poll() -> anyhow::Resul
     for i in 0..3 {
         let expected_subject = format!("Multiple Poll Test {}", i);
         assert!(
-            result.iter().any(|m| m.subject().unwrap_or_default() == expected_subject),
-            "Should find message with subject: {}", expected_subject
+            result
+                .iter()
+                .any(|m| m.subject().unwrap_or_default() == expected_subject),
+            "Should find message with subject: {}",
+            expected_subject
         );
     }
 
@@ -1081,13 +1127,14 @@ async fn test_poll_new_messages_multiple_messages_single_poll() -> anyhow::Resul
 async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
-    let folder = find_folder_equals(&mut inbox, "INBOX")?;
+    let _folder = find_folder_equals(&mut inbox, "INBOX")?;
 
     // Start polling on empty folder (use tests2 which should be empty)
     let empty_folder = find_folder_equals(&mut inbox, "INBOX.tests2")?;
 
     let mut poll_inbox = container_data.create_inbox()?;
     let poll_folder = empty_folder.clone();
+    let poll_folder_for_first = poll_folder.clone();
 
     // Send first message
     container_data
@@ -1101,7 +1148,11 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
         .await?;
 
     // First poll should return the first message
-    let result1 = poll_inbox.poll_new_messages(&poll_folder)?;
+    let result1 = tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
+        poll_inbox.poll_new_messages(&poll_folder_for_first)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Timeout waiting for messages: {}", e))??;
     assert_eq!(result1.len(), 1, "First poll should return 1 message");
     assert_eq!(
         result1[0].subject().unwrap(),
@@ -1122,8 +1173,15 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
         )
         .await?;
 
+    // Create a new inbox for the second poll since the first one was moved
+    let mut poll_inbox2 = container_data.create_inbox()?;
+
     // Second poll should return the second message
-    let result2 = poll_inbox.poll_new_messages(&poll_folder)?;
+    let result2 = tokio::time::timeout(tokio::time::Duration::from_secs(5), async move {
+        poll_inbox2.poll_new_messages(&poll_folder)
+    })
+    .await
+    .map_err(|e| anyhow::anyhow!("Timeout waiting for messages: {}", e))??;
     assert_eq!(result2.len(), 1, "Second poll should return 1 message");
     assert_eq!(
         result2[0].subject().unwrap(),
@@ -1146,40 +1204,41 @@ async fn test_poll_new_messages_mixed_scenario() -> anyhow::Result<()> {
     let poll_folder = folder.clone();
 
     // Poll in a separate task that will block
-    let handle = tokio::task::spawn_blocking(move || {
-        poll_inbox.poll_new_messages(&poll_folder)
-    });
+    let handle = tokio::task::spawn_blocking(move || poll_inbox.poll_new_messages(&poll_folder));
 
     // Wait a bit to ensure polling starts
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Send multiple messages rapidly while polling
     for i in 0..2 {
-        container_data
-            .send_email(
-                mail_send::mail_builder::MessageBuilder::new()
-                    .from(("sender", &format!("sender{}@example.com", i)))
-                    .to(("bar", "bar@example.com"))
-                    .subject(&format!("Mixed Poll Test {}", i))
-                    .text_body(&format!("Mixed scenario message {}", i)),
-            )
-            .await?;
+        send_test_email(
+            &container_data,
+            "sender",
+            &format!("sender{}@example.com", i),
+            "bar",
+            "bar@example.com",
+            &format!("Mixed Poll Test {}", i),
+            &format!("Mixed scenario message {}", i),
+        )
+        .await?;
     }
 
     // Wait a bit and send one more message
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    container_data
-        .send_email(
-            mail_send::mail_builder::MessageBuilder::new()
-                .from(("sender", "sender3@example.com"))
-                .to(("bar", "bar@example.com"))
-                .subject("Mixed Poll Test 2")
-                .text_body("Final message in mixed scenario"),
-        )
-        .await?;
+    send_test_email(
+        &container_data,
+        "sender",
+        "sender3@example.com",
+        "bar",
+        "bar@example.com",
+        "Mixed Poll Test 2",
+        "Final message in mixed scenario",
+    )
+    .await?;
 
-    let result = handle.await??;
+    // Wait for the poll with a 5-second timeout
+    let result = tokio::time::timeout(tokio::time::Duration::from_secs(5), handle).await???;
 
     assert!(!result.is_empty(), "Poll should have returned messages");
     assert!(
@@ -1192,7 +1251,10 @@ async fn test_poll_new_messages_mixed_scenario() -> anyhow::Result<()> {
     let mut found_count = 0;
     for i in 0..3 {
         let expected_subject = format!("Mixed Poll Test {}", i);
-        if result.iter().any(|m| m.subject().unwrap_or_default() == expected_subject) {
+        if result
+            .iter()
+            .any(|m| m.subject().unwrap_or_default() == expected_subject)
+        {
             found_count += 1;
         }
     }
