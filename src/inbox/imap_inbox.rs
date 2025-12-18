@@ -177,14 +177,19 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
         &mut self,
         folder: &Folder,
     ) -> anyhow::Result<Vec<Message>> {
-        let last_uid = *self.last_seen_uid.get(folder).unwrap_or(&1);
-        self.with_select(folder, |inbox| {
+        let last_uid = *self.last_seen_uid.get(folder).unwrap_or(&0);
+        let result = self.with_select(folder, |inbox| {
             let response = inbox
                 .imap_session
                 .uid_fetch(format!("{}:*", last_uid + 1), "(FLAGS RFC822 UID)")
                 .with_context(|| format!("Failed to fetch messages in folder {}", folder.name))?;
             IMAPInbox::<T>::fetch_response_to_messages(response, folder)
-        })
+        })?;
+        let highest_uid = result.iter().map(|msg| msg.uid().unwrap_or(last_uid)).max();
+        if let Some(uid) = highest_uid {
+            self.last_seen_uid.insert(folder.clone(), uid);
+        }
+        Ok(result)
     }
 }
 
@@ -273,7 +278,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
                     let idle = inbox.imap_session.idle()?;
                     idle.wait_keepalive()?;
 
-                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&1);
+                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&0);
 
                     let has_messages = {
                         let response = inbox
