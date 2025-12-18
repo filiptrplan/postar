@@ -1,4 +1,4 @@
-use crate::inbox::{Folder, Inbox};
+use crate::inbox::Inbox;
 use crate::test_helpers::{MockInbox, find_folder_equals};
 use anyhow::Result;
 

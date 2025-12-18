@@ -315,4 +315,9 @@ impl Inbox for MockInbox {
 
         Ok(())
     }
+
+    fn poll_new_messages(&mut self, folder: &Folder) -> Result<Vec<Message>> {
+        // For mock inbox, just return existing messages immediately
+        self.fetch_messages_in_folder(folder)
+    }
 }
