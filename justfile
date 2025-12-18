@@ -1,5 +1,5 @@
 run-greenmail:
-  docker run -t -i -p 3025:3025 -p 3110:3110 -p 3143:3143 -p 3465:3465 -p 3993:3993 -p 3995:3995 -p 8090:8080 greenmail/standalone:2.1.8
+  docker run -t -i -p 3025:3025 -p 3110:3110 -p 3143:3143 -p 3465:3465 -p 3993:3993 -p 3995:3995 -p 8090:8080 -e GREENMAIL_OPTS='-Dgreenmail.verbose -Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.auth.disabled' greenmail/standalone:2.1.8 
 
 # Send an email as user 'foo' with password 'a'
 send-email recipient="user@example.com" subject="Test Mail" body="Hello from foo":

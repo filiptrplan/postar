@@ -20,7 +20,7 @@ pub struct IMAPContainerData {
     pub imap_port: u16,
     pub smtp_port: u16,
     #[allow(unused)]
-    pub container: ContainerAsync<GenericImage>,
+    pub container: Option<ContainerAsync<GenericImage>>,
 }
 
 pub fn get_mock_email_dir() -> PathBuf {
@@ -30,12 +30,14 @@ pub fn get_mock_email_dir() -> PathBuf {
 impl IMAPContainerData {
     #[allow(dead_code)]
     pub async fn print_container_logs(&self) {
-        let logs = self.container.stdout(false); // false = read from startup to present
+        if let Some(container) = &self.container {
+            let logs = container.stdout(false); // false = read from startup to present
 
-        let mut lines = logs.lines();
+            let mut lines = logs.lines();
 
-        while let Ok(Some(line)) = lines.next_line().await {
-            println!("{}", line);
+            while let Ok(Some(line)) = lines.next_line().await {
+                println!("{}", line);
+            }
         }
     }
 
@@ -78,9 +80,22 @@ pub async fn get_container() -> IMAPContainerData {
         host: container.get_host().await.unwrap().to_string(),
         imap_port: container.get_host_port_ipv4(port).await.unwrap(),
         smtp_port: container.get_host_port_ipv4(smtp_port).await.unwrap(),
-        container,
+        container: Some(container),
     }
 }
+
+pub async fn get_host_container() -> IMAPContainerData {
+    let port = 3993;
+    let smtp_port = 3465;
+
+    IMAPContainerData {
+        host: "localhost".to_owned(),
+        imap_port: port,
+        smtp_port,
+        container: None,
+    }
+}
+
 pub fn find_folder_contains(inbox: &mut impl Inbox, pattern: &str) -> Result<Folder> {
     inbox
         .list_folders()?
@@ -101,6 +116,35 @@ pub fn find_folder_equals(inbox: &mut impl Inbox, name: &str) -> Result<Folder> 
             "Cannot find folder with name '{}'",
             name
         ))
+}
+
+/// Independent send_email function that can be used without container_data
+/// Takes SMTP connection parameters and sends an email
+pub async fn send_email(
+    host: &str,
+    smtp_port: u16,
+    from_name: &str,
+    from_email: &str,
+    to_name: &str,
+    to_email: &str,
+    subject: &str,
+    body: &str,
+) -> anyhow::Result<()> {
+    SmtpClientBuilder::new(host, smtp_port)
+        .implicit_tls(true)
+        .allow_invalid_certs()
+        .credentials(("foo", "a"))
+        .connect()
+        .await?
+        .send(
+            mail_send::mail_builder::MessageBuilder::new()
+                .from((from_name, from_email))
+                .to((to_name, to_email))
+                .subject(subject)
+                .text_body(body),
+        )
+        .await?;
+    Ok(())
 }
 
 /// Mock inbox implementation for testing
