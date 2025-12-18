@@ -5,7 +5,6 @@ use imap::{
     extensions::idle::SetReadTimeout,
     types::{Fetch, ZeroCopy},
 };
-use imap_proto::Capability;
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use std::{
@@ -53,31 +52,6 @@ struct InboxCapabilities {
     has_move: bool,
     /// `IDLE` capability
     has_idle: bool,
-}
-
-/// This is a struct that creates a guard for the `SELECT` operation in the IMAP protocol. The
-/// purpose is for the programmer to not forget to close the folder after they are finished with
-/// it, because the invariant we are maintaining is that after every operation we should be in the
-/// authenticated state, not in the selected one.
-struct SelectGuard<'a, T: Read + Write + SetReadTimeout> {
-    inbox: Option<&'a mut IMAPInbox<T>>,
-}
-
-impl<T: Read + Write + SetReadTimeout> Drop for SelectGuard<'_, T> {
-    fn drop(&mut self) {
-        if let Some(inbox) = &mut self.inbox {
-            let _ = inbox.close();
-        }
-    }
-}
-
-impl<'a, T: Read + Write + SetReadTimeout> SelectGuard<'a, T> {
-    fn new(inbox: &'a mut IMAPInbox<T>) -> Self {
-        Self { inbox: Some(inbox) }
-    }
-    fn new_dummy() -> Self {
-        Self { inbox: None }
-    }
 }
 
 impl IMAPInbox<TlsStream<TcpStream>> {
@@ -130,7 +104,18 @@ impl IMAPInbox<TlsStream<TcpStream>> {
 }
 
 impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
-    fn select(&mut self, folder: &Folder) -> anyhow::Result<SelectGuard<'_, T>> {
+    /// Execute an operation with a folder selected, automatically closing it afterward
+    fn with_select<F, R>(&mut self, folder: &Folder, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Self) -> anyhow::Result<R>,
+    {
+        self.select(folder)?;
+        let result = f(self);
+        self.close()?;
+        result
+    }
+
+    fn select(&mut self, folder: &Folder) -> anyhow::Result<()> {
         // If we already are selected in a folder, we first check whether it is the same one. If it
         // isn't, that means we are performing an operation not allowed by our invariant.
         if self.state == InboxState::Selected {
@@ -141,7 +126,7 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
                     folder.name
                 ));
             }
-            return Ok(SelectGuard::new_dummy());
+            return Ok(());
         }
 
         let mailbox = self
@@ -153,7 +138,7 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
         }
         self.state = InboxState::Selected;
         self.currently_selected_folder = Some(folder.clone());
-        Ok(SelectGuard::new(self))
+        Ok(())
     }
 
     fn close(&mut self) -> anyhow::Result<()> {
@@ -192,36 +177,15 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
         &mut self,
         folder: &Folder,
     ) -> anyhow::Result<Vec<Message>> {
-        let _ = self.select(folder);
-        let last_uid = self.last_seen_uid.get(folder).unwrap_or(&1);
-        let response = self
-            .imap_session
-            .uid_fetch(format!("{}:*", last_uid + 1), "(FLAGS RFC822 UID)")
-            .with_context(|| format!("Failed to fetch messages in folder {}", folder.name))?;
-        IMAPInbox::<T>::fetch_response_to_messages(response, folder)
+        let last_uid = *self.last_seen_uid.get(folder).unwrap_or(&1);
+        self.with_select(folder, |inbox| {
+            let response = inbox
+                .imap_session
+                .uid_fetch(format!("{}:*", last_uid + 1), "(FLAGS RFC822 UID)")
+                .with_context(|| format!("Failed to fetch messages in folder {}", folder.name))?;
+            IMAPInbox::<T>::fetch_response_to_messages(response, folder)
+        })
     }
-
-    fn check_for_new_messages_from_last_seen_uid(
-        &mut self,
-        folder: &Folder,
-    ) -> anyhow::Result<MessagesAvailable> {
-        let _ = self.select(folder);
-        let last_uid = self.last_seen_uid.get(folder).unwrap_or(&1);
-        let response = self
-            .imap_session
-            .uid_search(format!("UID {}:*", last_uid + 1))
-            .with_context(|| format!("Failed to SEARCH in folder {}", folder.name))?;
-        if response.is_empty() {
-            Ok(MessagesAvailable::None)
-        } else {
-            Ok(MessagesAvailable::Some)
-        }
-    }
-}
-
-enum MessagesAvailable {
-    None,
-    Some,
 }
 
 impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
@@ -236,14 +200,16 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
     }
 
     fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
-        let _ = self.select(folder)?;
+        self.with_select(folder, |inbox| {
+            let messages = inbox
+                .imap_session
+                .fetch("1:*", "(FLAGS RFC822 UID)")
+                .with_context(|| {
+                    format!("Failed to fetch all messages in folder {}", folder.name)
+                })?;
 
-        let messages = self
-            .imap_session
-            .fetch("1:*", "(FLAGS RFC822 UID)")
-            .with_context(|| format!("Failed to fetch all messages in folder {}", folder.name))?;
-
-        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+            IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+        })
     }
 
     fn move_message_to_folder(
@@ -257,20 +223,25 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
         let uid_set = message
             .uid_set()
             .ok_or(anyhow::format_err!("Message is invalid"))?;
-        let _ = self.select(containing_folder);
-        // We use the UID MOVE command if it is possible because it is an atomic operation.
-        if self.capabilities.has_move {
-            self.imap_session
-                .uid_mv(&uid_set, &destination_folder.name)?;
-        } else {
-            self.imap_session
-                .uid_store(&uid_set, "+FLAGS.SILENT \\Deleted")?;
-            self.imap_session
-                .uid_copy(&uid_set, &destination_folder.name)?;
-            self.imap_session.uid_expunge(&uid_set)?;
-        }
 
-        self.close()?;
+        self.with_select(containing_folder, |inbox| {
+            // We use the UID MOVE command if it is possible because it is an atomic operation.
+            if inbox.capabilities.has_move {
+                inbox
+                    .imap_session
+                    .uid_mv(&uid_set, &destination_folder.name)?;
+            } else {
+                inbox
+                    .imap_session
+                    .uid_store(&uid_set, "+FLAGS.SILENT \\Deleted")?;
+                inbox
+                    .imap_session
+                    .uid_copy(&uid_set, &destination_folder.name)?;
+                inbox.imap_session.uid_expunge(&uid_set)?;
+            }
+            Ok(())
+        })?;
+
         message.set_invalid();
         Ok(())
     }
@@ -282,40 +253,66 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             .uid_set()
             .ok_or(anyhow::format_err!("Message is invalid"))?;
 
-        self.select(containing_folder)?;
+        self.with_select(containing_folder, |inbox| {
+            inbox
+                .imap_session
+                .uid_store(&uid_set, "+FLAGS (\\Deleted)")?;
 
-        self.imap_session
-            .uid_store(&uid_set, "+FLAGS (\\Deleted)")?;
-
-        self.imap_session.uid_expunge(&uid_set)?;
+            inbox.imap_session.uid_expunge(&uid_set)?;
+            Ok(())
+        })?;
 
         message.set_invalid();
         Ok(())
     }
 
     fn poll_new_messages(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
-        let _guard = self.select(folder)?;
-        if self.capabilities.has_idle {
-            loop {
-                let idle = self.imap_session.idle()?;
-                idle.wait_keepalive()?;
-                if let MessagesAvailable::Some =
-                    self.check_for_new_messages_from_last_seen_uid(folder)?
-                {
-                    break;
+        self.with_select(folder, |inbox| {
+            if inbox.capabilities.has_idle {
+                loop {
+                    let idle = inbox.imap_session.idle()?;
+                    idle.wait_keepalive()?;
+
+                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&1);
+
+                    let has_messages = {
+                        let response = inbox
+                            .imap_session
+                            .uid_search(format!("UID {}:*", last_uid + 1))
+                            .with_context(|| {
+                                format!("Failed to SEARCH in folder {}", folder.name)
+                            })?;
+                        !response.is_empty()
+                    };
+
+                    if has_messages {
+                        break;
+                    }
+                }
+            } else {
+                loop {
+                    let _ = inbox.imap_session.noop();
+                    thread::sleep(time::Duration::from_millis(3000));
+
+                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&1);
+
+                    let has_messages = {
+                        let response = inbox
+                            .imap_session
+                            .uid_search(format!("UID {}:*", last_uid + 1))
+                            .with_context(|| {
+                                format!("Failed to SEARCH in folder {}", folder.name)
+                            })?;
+                        !response.is_empty()
+                    };
+
+                    if has_messages {
+                        break;
+                    }
                 }
             }
-        } else {
-            loop {
-                let _ = self.imap_session.noop();
-                thread::sleep(time::Duration::from_millis(3000));
-                if let MessagesAvailable::Some =
-                    self.check_for_new_messages_from_last_seen_uid(folder)?
-                {
-                    break;
-                }
-            }
-        }
+            Ok(())
+        })?;
         self.fetch_messages_from_last_seen_uid(folder)
     }
 }
