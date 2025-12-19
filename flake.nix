@@ -39,6 +39,7 @@
               fd
               rust-bin.stable.latest.default
               rust-analyzer
+              sqlite
             ];
           };
       }

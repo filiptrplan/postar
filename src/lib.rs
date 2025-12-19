@@ -3,6 +3,8 @@
 pub mod dsl;
 /// Deals with interfacing with the underlying email server whether it be IMAP or POP3
 pub mod inbox;
+/// The module containing migrations for the SQLite database
+pub mod migrations;
 /// Matches emails to rules and executes the corresponding actions.
 pub mod process;
 #[cfg(test)]
