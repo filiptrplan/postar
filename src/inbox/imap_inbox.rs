@@ -1,6 +1,7 @@
 use crate::{
     config::IMAPConfig,
     inbox::{Folder, Inbox, Message, MessageBuilder},
+    migrations::MIGRATIONS,
 };
 use anyhow::Context;
 use imap::{
@@ -8,12 +9,15 @@ use imap::{
     extensions::idle::SetReadTimeout,
     types::{Fetch, ZeroCopy},
 };
-use mail_parser::MessageParser;
+use log::info;
+use mail_parser::{MessageParser, mailbox};
 use native_tls::TlsStream;
+use rusqlite::{Connection, OptionalExtension, params};
 use std::{
     collections::HashMap,
     io::{Read, Write},
     net::TcpStream,
+    path::Path,
     thread, time,
 };
 
@@ -38,9 +42,9 @@ pub struct IMAPInbox<T: Read + Write> {
     /// opetaions
     capabilities: InboxCapabilities,
     pub(super) state: InboxState,
-    last_seen_uid: HashMap<Folder, u32>,
-    uid_validity: HashMap<Folder, u32>,
     currently_selected_folder: Option<Folder>,
+    conn: Connection,
+    server_user_id: u16,
 }
 
 /// The capabilities of the IMAP server. Used for checking whether we can perform various
@@ -59,22 +63,24 @@ struct InboxCapabilities {
 
 impl IMAPInbox<TlsStream<TcpStream>> {
     /// Creates an `Inbox` from a config.
-    pub fn from_config(config: &IMAPConfig) -> anyhow::Result<Self> {
+    pub fn from_config<T: AsRef<Path>>(config: &IMAPConfig, db_path: T) -> anyhow::Result<Self> {
         IMAPInbox::new_tls(
             &config.server,
             config.port,
             &config.username,
             &config.password,
             config.self_signed_cert,
+            db_path,
         )
     }
     /// Creates an `Inbox` using a `TlsConnector` using username/password credentials.
-    pub fn new_tls(
+    pub fn new_tls<T: AsRef<Path>>(
         server: &str,
         port: u16,
         user: &str,
         pass: &str,
         use_self_signed_cert: bool,
+        db_path: T,
     ) -> anyhow::Result<Self> {
         let tls = native_tls::TlsConnector::builder()
             .danger_accept_invalid_certs(use_self_signed_cert)
@@ -102,6 +108,34 @@ impl IMAPInbox<TlsStream<TcpStream>> {
             ));
         }
 
+        let mut conn = Connection::open(db_path).with_context(|| "Failed to open DB.")?;
+
+        // Update the database
+        MIGRATIONS
+            .to_latest(&mut conn)
+            .with_context(|| "Failed to apply migrations to DB.")?;
+
+        // Check for server in the table
+        {
+            let mut stmt =
+                conn.prepare("SELECT * FROM imap_servers WHERE server=?1 AND user=?2")?;
+            let mut server_res = stmt.query(params![server, user])?;
+            // This means we have no rows
+            if let Ok(None) = server_res.next() {
+                conn.execute(
+                    "INSERT INTO imap_servers (server, user) VALUES (?1, ?2)",
+                    params![server, user],
+                )?;
+            }
+        }
+
+        // Retrieve the (server,user) id
+        let server_user_id = conn.query_one(
+            "SELECT id FROM imap_servers WHERE server=?1 AND user=?2",
+            params![server, user],
+            |row| row.get(0),
+        )?;
+
         Ok(IMAPInbox {
             imap_session,
             capabilities: InboxCapabilities {
@@ -112,6 +146,8 @@ impl IMAPInbox<TlsStream<TcpStream>> {
             last_seen_uid: HashMap::new(),
             uid_validity: HashMap::new(),
             currently_selected_folder: None,
+            conn,
+            server_user_id,
         })
     }
 }
@@ -146,12 +182,53 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
             .imap_session
             .select(&folder.name)
             .with_context(|| format!("Failed to select folder {}", folder.name))?;
-        if let Some(val) = mailbox.uid_validity {
-            self.uid_validity.insert(folder.clone(), val);
+
+        // First check for UID validity existing
+        let uid_validity: Option<u32> = self
+            .conn
+            .query_one(
+                "SELECT uid_validity FROM imap_folders WHERE server_id = ?1 AND name = ?2",
+                params![self.server_user_id, folder.name],
+                |row| row.get(0),
+            )
+            .optional()?;
+
+        let mailbox_validity = mailbox.uid_validity.ok_or(anyhow::format_err!(
+            "SELECT statement didn't return a UID VALIDITY"
+        ))?;
+
+        match uid_validity {
+            Some(uid_validity) => {
+                // Invalidate last_seen_uid if we don't have the same uid validity
+                if uid_validity != mailbox_validity {
+                    info!(
+                        "Invalidating last_seen_uid for server {} folder {}",
+                        self.server_user_id, folder.name
+                    );
+                    self.conn.execute("UPDATE imap_folders SET uid_validity=?1, last_seen_uid=NULL WHERE server_id = ?2 AND name = ?3", params![mailbox.uid_validity, self.server_user_id, folder.name])?;
+                }
+            }
+            None => {
+                // Else insert a new row
+                self.conn.execute(
+                    "INSERT INTO imap_folders (server_id, name, uid_validity) VALUES (?1, ?2, ?3)",
+                    params![self.server_user_id, folder.name, mailbox_validity],
+                )?;
+            }
         }
+
         self.state = InboxState::Selected;
         self.currently_selected_folder = Some(folder.clone());
         Ok(())
+    }
+
+    fn get_last_seen_uid(&mut self, folder: &Folder) -> anyhow::Result<Option<u32>> {
+        let res: Option<u32> = self.conn.query_one(
+            "SELECT uid_validity FROM imap_folders WHERE server_id = ?1 AND name = ?2",
+            params![self.server_user_id, folder.name],
+            |row| row.get(0),
+        )?;
+        Ok(res)
     }
 
     fn close(&mut self) -> anyhow::Result<()> {
@@ -291,7 +368,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
                     let idle = inbox.imap_session.idle()?;
                     idle.wait_keepalive()?;
 
-                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&0);
+                    let last_uid = self.get_last_seen_uid(folder)?.unwrap_or(0);
 
                     let has_messages = {
                         let response = inbox
@@ -312,7 +389,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
                     let _ = inbox.imap_session.noop();
                     thread::sleep(time::Duration::from_millis(3000));
 
-                    let last_uid = *inbox.last_seen_uid.get(folder).unwrap_or(&1);
+                    let last_uid = self.get_last_seen_uid(folder)?.unwrap_or(0);
 
                     let has_messages = {
                         let response = inbox

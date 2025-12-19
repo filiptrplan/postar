@@ -5,13 +5,16 @@ use chumsky::{
 use logos::Span;
 use postar::{
     IMAPInbox, Inbox,
+    config::Config,
     dsl::{
         File,
         lexer::{Token, process_tokens},
         parser::{config, rule},
     },
     inbox::Folder,
+    migrations::MIGRATIONS,
 };
+use rusqlite::Connection;
 
 #[derive(clap::Parser)]
 struct Args {
@@ -20,12 +23,16 @@ struct Args {
     config: std::path::PathBuf,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     // let args = <Args as clap::Parser>::parse();
     // let mut file = File::new(&args.config);
     // let rules = file.parse_to_rules();
     // dbg!(rules);
-    let mut inbox = IMAPInbox::new_tls("localhost", 3993, "user@example.com", "a", true).unwrap();
+    let config = Config::from_file("./postar.toml")?;
+    let mut inbox = IMAPInbox::from_config(config.imap.first().unwrap(), "./postar.db")?;
     let folder = Folder::new("INBOX".to_owned());
-    inbox.poll_new_messages(&folder).unwrap();
+    dbg!(inbox.fetch_messages_in_folder(&folder)?);
+    // dbg!(inbox.poll_new_messages(&folder).unwrap());
+
+    Ok(())
 }

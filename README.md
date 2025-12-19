@@ -21,7 +21,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 
 - [x] detecting new emails
   - [ ] save last seen uid
-- [ ] configuration for different imap servers
+- [x] configuration for different imap servers
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!

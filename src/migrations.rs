@@ -13,7 +13,7 @@ const MIGRATIONS_SLICE: &[M<'_>] = &[
            server_id INTEGER NOT NULL,
            name TEXT NOT NULL,
            last_seen_uid INTEGER,
-           uid_validity INTEGER,
+           uid_validity INTEGER NOT NULL,
            PRIMARY KEY(server_id, name),
            FOREIGN KEY(server_id) REFERENCES imap_servers(id)
         );
