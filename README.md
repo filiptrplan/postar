@@ -22,6 +22,8 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 - [x] detecting new emails
   - [ ] save last seen uid
 - [x] configuration for different imap servers
+- [ ] refactor the API so as not to use with_select but use something like
+      ensure_select
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
