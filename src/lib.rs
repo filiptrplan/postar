@@ -1,3 +1,5 @@
+/// Connection configuration logic
+pub mod config;
 /// This module contains everything needed to parse DSL files to actual
 /// [rules](crate::process::Rule)
 pub mod dsl;

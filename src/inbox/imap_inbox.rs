@@ -1,4 +1,7 @@
-use crate::inbox::{Folder, Inbox, Message, MessageBuilder};
+use crate::{
+    config::IMAPConfig,
+    inbox::{Folder, Inbox, Message, MessageBuilder},
+};
 use anyhow::Context;
 use imap::{
     Session,
@@ -55,9 +58,19 @@ struct InboxCapabilities {
 }
 
 impl IMAPInbox<TlsStream<TcpStream>> {
+    /// Creates an `Inbox` from a config.
+    pub fn from_config(config: &IMAPConfig) -> anyhow::Result<Self> {
+        IMAPInbox::new_tls(
+            &config.server,
+            config.port,
+            &config.username,
+            &config.password,
+            config.self_signed_cert,
+        )
+    }
     /// Creates an `Inbox` using a `TlsConnector` using username/password credentials.
     pub fn new_tls(
-        domain: &str,
+        server: &str,
         port: u16,
         user: &str,
         pass: &str,
@@ -69,7 +82,7 @@ impl IMAPInbox<TlsStream<TcpStream>> {
 
         // we pass in the domain twice to check that the server's TLS
         // certificate is valid for the domain we're connecting to.
-        let client = imap::connect((domain, port), domain, &tls)
+        let client = imap::connect((server, port), server, &tls)
             .with_context(|| "Failed to connect to IMAP server")?;
 
         // the client we have here is unauthenticated.

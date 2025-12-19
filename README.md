@@ -19,8 +19,9 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 
 ## TODO
 
-- [ ] detecting new emails
+- [x] detecting new emails
   - [ ] save last seen uid
+- [ ] configuration for different imap servers
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
@@ -48,3 +49,27 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - or a binary operator to merge multiple sub-rules
 - Action object
   - performs an action: move, delete, archive, etc.
+
+## Connection configuration
+
+At the present moment, postar supports only IMAP inboxes. You can configure
+multiple inboxes using a TOML configuration file. The file is located at
+`~/.config/postar/config.toml` by default but you can specify a custom one using
+the `--config` option.
+
+```toml
+[[imap]]
+name = "Main"
+server = "mail.example.com"
+port = 3993
+username = "user@example.com"
+password = "pass"
+
+[[imap]]
+name = "Secondary"
+server = "mail.example.org"
+port = 3993
+self_signed_cert = true # Optional field to work with local servers
+username = "user2@example.org"
+password = "pass"
+```
