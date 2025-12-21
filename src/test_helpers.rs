@@ -57,7 +57,14 @@ impl IMAPContainerData {
     }
 
     pub fn create_inbox(&self) -> anyhow::Result<IMAPInbox<TlsStream<TcpStream>>> {
-        IMAPInbox::new_tls(&self.host, self.imap_port, "bar@example.com", "a", true)
+        IMAPInbox::new_tls(
+            &self.host,
+            self.imap_port,
+            "bar@example.com",
+            "a",
+            true,
+            ":memory:",
+        )
     }
 }
 

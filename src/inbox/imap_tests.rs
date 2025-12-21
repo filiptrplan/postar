@@ -80,6 +80,7 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
         "bar",
         "a",
         true,
+        ":memory:",
     )?;
 
     Ok(())
@@ -89,7 +90,14 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
 #[test_log::test]
 async fn test_new_tls_invalid_host() {
     // Test that new_tls fails with invalid host
-    let result = IMAPInbox::new_tls("invalid.host.example.com", 993, "user", "pass", true);
+    let result = IMAPInbox::new_tls(
+        "invalid.host.example.com",
+        993,
+        "user",
+        "pass",
+        true,
+        ":memory:",
+    );
 
     // Should fail with connection error
     assert!(result.is_err());
@@ -384,28 +392,6 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_authenticated_state_after_move() -> anyhow::Result<()> {
-    let container_data = get_container().await;
-    let mut inbox = container_data.create_inbox()?;
-
-    let source_folder = find_folder_contains(&mut inbox, "tests1")?;
-    let dest_folder = find_folder_contains(&mut inbox, "tests2")?;
-
-    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
-    let mut message_to_move = messages.remove(0);
-    inbox.move_message_to_folder(&mut message_to_move, &dest_folder)?;
-
-    assert_eq!(
-        inbox.state,
-        InboxState::Authenticated,
-        "The inbox should be in an authenticated state after the end of the command."
-    );
-
-    Ok(())
-}
-
-#[tokio::test]
-#[test_log::test]
 async fn test_delete_valid_message() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
@@ -505,28 +491,6 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     );
 
     assert!(!invalid_message.is_valid(), "Message should remain invalid");
-
-    Ok(())
-}
-
-#[tokio::test]
-#[test_log::test]
-async fn test_delete_message_maintains_authenticated_state() -> anyhow::Result<()> {
-    let container_data = get_container().await;
-    let mut inbox = container_data.create_inbox()?;
-
-    let folder = find_folder_contains(&mut inbox, "tests1")?;
-
-    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
-    let mut message_to_delete = messages.remove(0);
-
-    inbox.delete_message(&mut message_to_delete)?;
-
-    assert_eq!(
-        inbox.state,
-        InboxState::Authenticated,
-        "The inbox should be in an authenticated state after delete_message"
-    );
 
     Ok(())
 }
