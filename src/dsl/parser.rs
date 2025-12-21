@@ -197,13 +197,13 @@ impl ParserError<'_> {
                 }
             }
         }
-    }
+    ]
 
     /// Returns the helper message that will be right below the error
     fn message(&self) -> String {
         self.get_diagnostic_messages().message
     }
-
+    
     /// Defines a custom [ariadne report](ariadne::Report) for displaying more complex errors.
     fn custom_error<'a>(
         &self,
