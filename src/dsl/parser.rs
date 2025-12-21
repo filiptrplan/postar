@@ -1,13 +1,13 @@
 use std::ops::Range;
 
-use crate::dsl::{ast::*, error::DslError, lexer::Token, File};
+use crate::dsl::{File, ast::*, error::DslError, lexer::Token};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
+    DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{any, choice, end, just, none_of, via_parser, Recursive},
+    prelude::{Recursive, any, choice, end, just, none_of, via_parser},
     span::{SimpleSpan, Span as _},
     util::Maybe,
-    DefaultExpected, IterParser, Parser,
 };
 type Span = SimpleSpan<usize>;
 
@@ -197,13 +197,13 @@ impl ParserError<'_> {
                 }
             }
         }
-    ]
+    }
 
     /// Returns the helper message that will be right below the error
     fn message(&self) -> String {
         self.get_diagnostic_messages().message
     }
-    
+
     /// Defines a custom [ariadne report](ariadne::Report) for displaying more complex errors.
     fn custom_error<'a>(
         &self,
@@ -336,8 +336,8 @@ where
 ///               | 'equals',     string
 ///               | 'regex',      string ;
 /// ```
-pub fn string_matcher<'a>(
-) -> impl Parser<'a, TokenInput<'a>, Node<ParserStringMatcher>, TokenErr<'a>> + Clone {
+pub fn string_matcher<'a>()
+-> impl Parser<'a, TokenInput<'a>, Node<ParserStringMatcher>, TokenErr<'a>> + Clone {
     let str_matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(any().try_map(|token, span| {
             Ok(match token {
@@ -489,8 +489,8 @@ pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserAction>, Token
     )
 }
 
-fn rule_pair<'a>(
-) -> impl Parser<'a, TokenInput<'a>, Node<(ParserRuleValue, Span)>, TokenErr<'a>> + Clone {
+fn rule_pair<'a>()
+-> impl Parser<'a, TokenInput<'a>, Node<(ParserRuleValue, Span)>, TokenErr<'a>> + Clone {
     spanned(choice((
         just(Token::KwMatcher)
             .then(just(Token::Colon))
