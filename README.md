@@ -20,9 +20,9 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 ## TODO
 
 - [x] detecting new emails
-  - [ ] save last seen uid
+  - [x] save last seen uid
 - [x] configuration for different imap servers
-- [ ] refactor the API so as not to use with_select but use something like
+- [x] refactor the API so as not to use with_select but use something like
       ensure_select
 - [x] ability to login to IMAP email inboxes
 - [x] ability to move emails to different folders
@@ -34,7 +34,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [x] chumsky parser
     - [x] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
   - [x] Ariadne error reporting
-- [ ] detecting new emails
+- [x] detecting new emails
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
