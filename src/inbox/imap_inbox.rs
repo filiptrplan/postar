@@ -10,11 +10,10 @@ use imap::{
     types::{Fetch, ZeroCopy},
 };
 use log::info;
-use mail_parser::{MessageParser, mailbox};
+use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
-    collections::HashMap,
     io::{Read, Write},
     net::TcpStream,
     path::Path,

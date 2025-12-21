@@ -1,20 +1,8 @@
-use chumsky::{
-    Parser,
-    extra::{self, SimpleState},
-};
-use logos::Span;
 use postar::{
     IMAPInbox, Inbox,
     config::Config,
-    dsl::{
-        File,
-        lexer::{Token, process_tokens},
-        parser::{config, rule},
-    },
     inbox::Folder,
-    migrations::MIGRATIONS,
 };
-use rusqlite::Connection;
 
 #[derive(clap::Parser)]
 struct Args {

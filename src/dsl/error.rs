@@ -1,6 +1,6 @@
 use crate::dsl::File;
 
-pub(super) trait DslError {
+pub trait DslError {
     /// Prints the error to stdout using [ariadne].
     ///
     /// `file`: the [File] this error was generated for.
