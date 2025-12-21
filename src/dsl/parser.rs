@@ -1,77 +1,41 @@
 use std::ops::Range;
 
-use crate::dsl::{File, ast::*, error::DslError, lexer::Token};
+use crate::dsl::{ast::*, error::DslError, lexer::Token, File};
 use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 use chumsky::{
-    DefaultExpected, IterParser, Parser,
     extra::{self},
-    prelude::{Recursive, any, choice, end, just, none_of, via_parser},
+    prelude::{any, choice, end, just, none_of, via_parser, Recursive},
     span::{SimpleSpan, Span as _},
     util::Maybe,
+    DefaultExpected, IterParser, Parser,
 };
-use strum::EnumMessage;
-
 type Span = SimpleSpan<usize>;
+
+#[derive(Debug, Clone)]
+pub struct DiagnosticInfo {
+    pub message: String,
+    pub note: Option<String>,
+}
 type TokenInput<'a> = &'a [Token];
 type TokenErr<'a> = extra::Full<ParserError<'a>, extra::SimpleState<&'a [logos::Span]>, ()>;
 
 /// The main error struct for parsing tokens to the AST. The main relevant function is [print_error](ParserError::print_error) that handles converting this struct to a pretty error.
-#[derive(Debug, PartialEq, Clone, strum_macros::EnumMessage)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ParserError<'a> {
-    #[strum(
-        message = "Expected a definition.",
-        detailed_message = "The top level of the configuration can only contain rule and action definitions."
-    )]
     TopLevelDefinition(Span),
-    #[strum(message = "Missing closing brace")]
     MissingClosingBrace(Span),
-    #[strum(message = "A rule should have a name. Name is missing.")]
     RuleNotNamed(Span),
-    #[strum(message = "A folder should have a name. Name is missing.")]
     FolderNotNamed(Span),
-    #[strum(
-        message = "Missing matcher",
-        detailed_message = "A rule should have exactly one matcher. Define it like so: 'matcher: subject contains ...'"
-    )]
     NoMatcherInRule(Span),
-    #[strum(
-        message = "Missing action",
-        detailed_message = "A rule should have exactly one action. Define it like so: 'action: delete'"
-    )]
     NoActionInRule(Span),
     DuplicateMatcherInRule(Span, Span),
     DuplicateActionInRule(Span, Span),
-    #[strum(
-        message = "Expected string after string matcher",
-        detailed_message = "String matchers require a string argument, e.g., 'contains \"hello\"'"
-    )]
     ExpectedStringAfterStringMatcher(Span),
-    #[strum(
-        message = "Expected string matcher keyword",
-        detailed_message = "Valid string matchers are: contains, starts_with, equals, regex"
-    )]
     ExpectedStringMatcherKeyword(Span),
-    #[strum(
-        message = "Expected string matcher after keyword",
-        detailed_message = "Keywords like 'subject', 'from', 'to', 'body' must be followed by a string matcher"
-    )]
     ExpectedStringMatcherAfterKeyword(Span),
-    #[strum(
-        message = "Expected match list after logical operator",
-        detailed_message = "Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'"
-    )]
     MatchListAfterLogicalOperator(Span),
-    #[strum(message = "The argument for the moveto action should be an identifier.")]
     IdentifierMoveTo(Span),
-    #[strum(
-        message = "Invalid action",
-        detailed_message = "Valid actions are: moveto, delete"
-    )]
     InvalidAction(Span),
-    #[strum(
-        message = "Arguments should follow this action",
-        detailed_message = "Some actions require arguments, for example: `moveto [ ident ]`"
-    )]
     ArgumentsFollowAction(Span),
     CombinedError(Box<ParserError<'a>>, Box<ParserError<'a>>),
     ExpectedFound {
@@ -148,12 +112,70 @@ impl ParserError<'_> {
         Self::span_to_lexer_span(self.span(), spans)
     }
 
-    /// Returns the helper message that will be right below the error
-    fn message(&self) -> String {
+    /// Returns diagnostic messages with contextual information
+    pub fn get_diagnostic_messages(&self) -> DiagnosticInfo {
         match self {
-            ParserError::ExpectedFound {
-                expected, found, ..
-            } => {
+            ParserError::TopLevelDefinition(_) => DiagnosticInfo {
+                message: "Expected a definition".to_string(),
+                note: Some("The top level of the configuration can only contain rule and action definitions".to_string()),
+            },
+            ParserError::MissingClosingBrace(_) => DiagnosticInfo {
+                message: "Missing closing brace".to_string(),
+                note: None,
+            },
+            ParserError::RuleNotNamed(_) => DiagnosticInfo {
+                message: "A rule should have a name. Name is missing.".to_string(),
+                note: None,
+            },
+            ParserError::FolderNotNamed(_) => DiagnosticInfo {
+                message: "A folder should have a name. Name is missing.".to_string(),
+                note: None,
+            },
+            ParserError::NoMatcherInRule(_) => DiagnosticInfo {
+                message: "Missing matcher".to_string(),
+                note: Some("A rule should have exactly one matcher. Define it like so: 'matcher: subject contains ...'".to_string()),
+            },
+            ParserError::NoActionInRule(_) => DiagnosticInfo {
+                message: "Missing action".to_string(),
+                note: Some("A rule should have exactly one action. Define it like so: 'action: delete'".to_string()),
+            },
+            ParserError::ExpectedStringAfterStringMatcher(_) => DiagnosticInfo {
+                message: "Expected string after string matcher".to_string(),
+                note: Some("String matchers require a string argument, e.g., 'contains \"hello\"'".to_string()),
+            },
+            ParserError::ExpectedStringMatcherKeyword(_) => DiagnosticInfo {
+                message: "Expected string matcher keyword".to_string(),
+                note: Some("Valid string matchers are: contains, starts_with, equals, regex".to_string()),
+            },
+            ParserError::ExpectedStringMatcherAfterKeyword(_) => DiagnosticInfo {
+                message: "Expected string matcher after keyword".to_string(),
+                note: Some("Keywords like 'subject', 'from', 'to', 'body' must be followed by a string matcher".to_string()),
+            },
+            ParserError::MatchListAfterLogicalOperator(_) => DiagnosticInfo {
+                message: "Expected match list after logical operator".to_string(),
+                note: Some("Logical operators 'and'/'or' must be followed by a match list in brackets, e.g., 'and [subject contains \"test\"]'".to_string()),
+            },
+            ParserError::IdentifierMoveTo(_) => DiagnosticInfo {
+                message: "The argument for the moveto action should be an identifier.".to_string(),
+                note: None,
+            },
+            ParserError::InvalidAction(_) => DiagnosticInfo {
+                message: "Invalid action".to_string(),
+                note: Some("Valid actions are: moveto, delete".to_string()),
+            },
+            ParserError::ArgumentsFollowAction(_) => DiagnosticInfo {
+                message: "Arguments should follow this action".to_string(),
+                note: Some("Some actions require arguments, for example: `moveto [ ident ]`".to_string()),
+            },
+            ParserError::DuplicateMatcherInRule(_, _) | ParserError::DuplicateActionInRule(_, _) => DiagnosticInfo {
+                message: "Duplicate elements detected".to_string(),
+                note: None,
+            },
+            ParserError::CombinedError(_, _) => DiagnosticInfo {
+                message: "Multiple parsing errors occurred".to_string(),
+                note: None,
+            },
+            ParserError::ExpectedFound { expected, found, .. } => {
                 let expected_str = expected
                     .iter()
                     .map(|e| match e {
@@ -169,24 +191,17 @@ impl ParserError<'_> {
                     .as_ref()
                     .map(|f| f.to_err_string())
                     .unwrap_or_else(|| "EOF".to_string());
-                format!("Expected {}, found {}", expected_str, found_str)
+                DiagnosticInfo {
+                    message: format!("Expected {}, found {}", expected_str, found_str),
+                    note: None,
+                }
             }
-            _ => self.get_message().unwrap_or("").to_string(),
         }
     }
 
-    /// Returns the note for additional clarification
-    fn note(&self) -> Option<String> {
-        match self {
-            ParserError::ExpectedFound { .. } => None,
-            _ => {
-                // We do this check because if only message is specified in the derive macro, the
-                // two values are the same and we get a duplicated note and error message
-                let note = self.get_detailed_message().map(|s| s.to_string());
-                let msg = self.message();
-                if note == Some(msg) { None } else { note }
-            }
-        }
+    /// Returns the helper message that will be right below the error
+    fn message(&self) -> String {
+        self.get_diagnostic_messages().message
     }
 
     /// Defines a custom [ariadne report](ariadne::Report) for displaying more complex errors.
@@ -258,7 +273,7 @@ impl DslError for ParserError<'_> {
                         .with_color(Color::Red)
                         .with_message(self.message()),
                 );
-            if let Some(note) = self.note() {
+            if let Some(note) = self.get_diagnostic_messages().note {
                 report_builder = report_builder.with_note(note);
             }
             report_builder.finish()
@@ -321,8 +336,8 @@ where
 ///               | 'equals',     string
 ///               | 'regex',      string ;
 /// ```
-pub fn string_matcher<'a>()
--> impl Parser<'a, TokenInput<'a>, Node<ParserStringMatcher>, TokenErr<'a>> + Clone {
+pub fn string_matcher<'a>(
+) -> impl Parser<'a, TokenInput<'a>, Node<ParserStringMatcher>, TokenErr<'a>> + Clone {
     let str_matcher_keyword = |keyword: Token| {
         just(keyword).ignore_then(any().try_map(|token, span| {
             Ok(match token {
@@ -474,8 +489,8 @@ pub fn action<'a>() -> impl Parser<'a, TokenInput<'a>, Node<ParserAction>, Token
     )
 }
 
-fn rule_pair<'a>()
--> impl Parser<'a, TokenInput<'a>, Node<(ParserRuleValue, Span)>, TokenErr<'a>> + Clone {
+fn rule_pair<'a>(
+) -> impl Parser<'a, TokenInput<'a>, Node<(ParserRuleValue, Span)>, TokenErr<'a>> + Clone {
     spanned(choice((
         just(Token::KwMatcher)
             .then(just(Token::Colon))
