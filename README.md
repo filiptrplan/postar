@@ -35,6 +35,23 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
   - [x] Ariadne error reporting
 - [x] detecting new emails
+- [ ] CLI
+  - [ ] arguments
+    - [ ] config: toml
+    - [ ] rules: ptar
+    - [ ] log level
+    - [ ] choose server: if no default, make argument required
+    - [ ] db path
+    - [ ] polling delay
+  - [ ] graceful shutdown for closing imap connection
+  - [ ] imap connection retrying with exponential delay
+  - [ ] what to log? implement logging
+  - [ ] statistics printing
+  - [ ] main loop
+    - [ ] parse rules
+    - [ ] parse config
+    - [ ] poll until new messages
+    - [ ] process messages depending on rules
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
