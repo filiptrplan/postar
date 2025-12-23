@@ -94,6 +94,7 @@ server = "mail.example.com"
 port = 3993
 username = "user@example.com"
 password = "pass"
+default = true
 
 [[imap]]
 name = "Secondary"

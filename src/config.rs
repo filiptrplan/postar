@@ -16,9 +16,15 @@ pub struct IMAPConfig {
     pub self_signed_cert: bool,
     pub username: String,
     pub password: String,
+    #[serde(default = "default_default")]
+    pub default: bool,
 }
 
 fn default_self_signed_cert() -> bool {
+    false
+}
+
+fn default_default() -> bool {
     false
 }
 

@@ -1,8 +1,4 @@
-use postar::{
-    IMAPInbox, Inbox,
-    config::Config,
-    inbox::Folder,
-};
+use postar::{IMAPInbox, Inbox, config::Config, inbox::Folder};
 
 #[derive(clap::Parser)]
 struct Args {
