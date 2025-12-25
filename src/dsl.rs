@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use chumsky::{Parser as _, extra::SimpleState};
 
 use crate::{
@@ -37,13 +38,13 @@ pub struct File {
 }
 
 impl File {
-    pub fn new(path: &PathBuf) -> Self {
-        let input_str = std::fs::read_to_string(path).unwrap();
-        Self {
+    pub fn new(path: &PathBuf) -> anyhow::Result<Self> {
+        let input_str = std::fs::read_to_string(path)?;
+        Ok(Self {
             contents: input_str,
             file_name: path.to_str().unwrap().to_owned(),
             lexer_spans: None,
-        }
+        })
     }
     pub fn parse_to_rules(&mut self) -> anyhow::Result<Vec<Rule>> {
         let tokens = lexer::process_tokens(self).map_err(|err| {

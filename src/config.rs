@@ -5,6 +5,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub imap: Vec<IMAPConfig>,
+    pub postar: PostarConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PostarConfig {
+    #[serde(default = "default_polling_delay")]
+    pub polling_delay: u32,
+}
+
+fn default_polling_delay() -> u32 {
+    3
 }
 
 #[derive(Debug, Serialize, Deserialize)]

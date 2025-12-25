@@ -43,6 +43,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [ ] choose server: if no default, make argument required
     - [ ] db path
     - [ ] polling delay
+    - [ ] check flag
   - [ ] graceful shutdown for closing imap connection
   - [ ] imap connection retrying with exponential delay
   - [ ] what to log? implement logging
