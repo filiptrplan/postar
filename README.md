@@ -37,23 +37,24 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 - [x] detecting new emails
 - [ ] CLI
   - [ ] arguments
-    - [ ] config: toml
-    - [ ] rules: ptar
-    - [ ] log level
-    - [ ] choose server: if no default, make argument required
-    - [ ] db path
+    - [x] config: toml
+    - [x] rules: ptar
+    - [x] log level
+    - [x] choose server: if no default, make argument required
+    - [x] db path
     - [ ] polling delay
-    - [ ] check flag
+    - [x] check flag
+    - [ ] dry run flag
   - [ ] graceful shutdown for closing imap connection
   - [ ] imap connection retrying with exponential delay
-  - [ ] what to log? implement logging
-    - [ ] pretty logging with colog
+  - [x] what to log? implement logging
+    - [x] pretty logging with colog
   - [ ] statistics printing
   - [ ] main loop
-    - [ ] parse rules
-    - [ ] parse config
-    - [ ] poll until new messages
-    - [ ] process messages depending on rules
+    - [x] parse rules
+    - [x] parse config
+    - [x] poll until new messages
+    - [x] process messages depending on rules
   - [ ] systemd integration
   - [ ] shell completions with clap_complete
 - [ ] filter emails by keyword in content or title
