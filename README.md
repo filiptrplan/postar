@@ -46,15 +46,19 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [ ] graceful shutdown for closing imap connection
   - [ ] imap connection retrying with exponential delay
   - [ ] what to log? implement logging
+    - [ ] pretty logging with colog
   - [ ] statistics printing
   - [ ] main loop
     - [ ] parse rules
     - [ ] parse config
     - [ ] poll until new messages
     - [ ] process messages depending on rules
+  - [ ] systemd integration
+  - [ ] shell completions with clap_complete
 - [ ] filter emails by keyword in content or title
 - [ ] filter by email
 - [ ] documentation AND man pages!
+  - [ ] clap_mangen
 - [ ] hot-reload of config!!
 - [ ] notifications for moved emails
 - [ ] persisten storage of state - process new emails upon startup
