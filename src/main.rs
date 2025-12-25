@@ -1,4 +1,4 @@
-use log::{LevelFilter, error};
+use log::{LevelFilter, error, info};
 use std::{panic, path::PathBuf, process::exit};
 
 use postar::{IMAPInbox, Inbox, config::Config, dsl::File, inbox::Folder};
@@ -140,10 +140,33 @@ fn main() -> anyhow::Result<()> {
         exit(0);
     }
 
-    let mut inbox = IMAPInbox::from_config(server, args.db)?;
-    // let folder = Folder::new("INBOX".to_owned());
-    // dbg!(inbox.fetch_messages_in_folder(&folder)?);
-    // dbg!(inbox.poll_new_messages(&folder).unwrap());
+    info!("Creating inbox...");
+    let mut inbox = IMAPInbox::from_config(server, args.db).unwrap_or_else(|err| {
+        error!("Error while connecting to server: {}", err);
+        exit(1);
+    });
 
-    Ok(())
+    let folder = Folder::new(server.incoming_folder.clone());
+    info!(
+        "Starting polling for new messages in folder {}...",
+        folder.name
+    );
+    loop {
+        let messages = inbox.poll_new_messages(&folder).unwrap_or_else(|err| {
+            error!(
+                "Error while polling for messages in folder {}: {}",
+                folder.name, err
+            );
+            exit(1);
+        });
+        let message_count = messages.len();
+        messages.into_iter().for_each(|mut msg| {
+            rules.iter().for_each(|rule| {
+                if let Err(err) = rule.match_and_execute(&mut inbox, &mut msg) {
+                    error!("Error while executing rule {}: {}", rule.name, err);
+                }
+            });
+        });
+        info!("Processed {} messages.", message_count);
+    }
 }

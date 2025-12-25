@@ -38,7 +38,7 @@ pub enum StringMatcher {
 
 #[derive(Debug)]
 pub struct Rule {
-    name: String,
+    pub name: String,
     matcher: Matcher,
     action: Action,
 }

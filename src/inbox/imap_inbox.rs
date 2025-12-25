@@ -14,6 +14,7 @@ use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
+    fs,
     io::{Read, Write},
     net::TcpStream,
     path::Path,
@@ -102,8 +103,14 @@ impl IMAPInbox<TlsStream<TcpStream>> {
             ));
         }
 
-        let mut conn = Connection::open(db_path).with_context(|| "Failed to open DB.")?;
-
+        let mut conn = {
+            if let Some(db_parent) = db_path.as_ref().parent()
+                && !db_parent.exists()
+            {
+                fs::create_dir_all(db_parent)?;
+            }
+            Connection::open(db_path).with_context(|| "Failed to open DB.")?
+        };
         // Update the database
         MIGRATIONS
             .to_latest(&mut conn)

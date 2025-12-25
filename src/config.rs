@@ -29,6 +29,12 @@ pub struct IMAPConfig {
     pub password: String,
     #[serde(default = "default_default")]
     pub default: bool,
+    #[serde(default = "default_incoming_folder")]
+    pub incoming_folder: String,
+}
+
+fn default_incoming_folder() -> String {
+    String::from("INBOX")
 }
 
 fn default_self_signed_cert() -> bool {
