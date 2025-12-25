@@ -58,6 +58,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [ ] systemd integration
   - [ ] shell completions with clap_complete
 - [ ] filter emails by keyword in content or title
+- [ ] check if folder exists first
 - [ ] filter by email
 - [ ] documentation AND man pages!
   - [ ] clap_mangen

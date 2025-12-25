@@ -37,6 +37,7 @@
               pkg-config
               eza
               fd
+              python3
               rust-bin.stable.latest.default
               rust-analyzer
               sqlite

@@ -8,4 +8,9 @@ send-email recipient="user@example.com" subject="Test Mail" body="Hello from foo
 cleanup-greenmail:
   docker ps -a --format '{{"{{"}}.ID}} {{"{{"}}.Image}}' | grep 'greenmail' | awk '{print $1}' | xargs docker rm -f
 
+# Create a folder on an IMAP server
+# Usage: just create-folder <folder-name>
+# For subfolders, use parent/child format like: just create-folder "INBOX/tests1"
+create-folder folder server="localhost" port="3143" user="user@example.com" password="a":
+  python3 -c "import imaplib; c = imaplib.IMAP4('{{server}}', {{port}}); c.login('{{user}}', '{{password}}'); folder_name = '{{folder}}'; folder_name = folder_name.replace('/', '.'); result = c.create(folder_name); print('Created folder:', folder_name if result[0] == 'OK' else 'Failed:', result); c.logout()"
 
