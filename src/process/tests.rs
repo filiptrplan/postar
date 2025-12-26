@@ -1,5 +1,5 @@
 use crate::inbox::{Folder, Inbox, Message, MessageBuilder};
-use crate::process::{Action, Matcher, StringMatcher};
+use crate::process::{Action, Matcher, Rule, StringMatcher};
 use crate::test_helpers::MockInbox;
 use mail_parser::MessageParser;
 use test_log::test;
@@ -619,4 +619,148 @@ fn create_message_with_body(subject: &str, body: &str) -> Message {
         message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
     }
     .build()
+}
+
+#[test]
+fn test_message_matches_two_rules_both_delete() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: URGENT Test\r\n\r\nThis is the body.";
+
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+
+    let mut messages = inbox
+        .fetch_all_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let rule1 = Rule::new(
+        "delete_urgent".to_string(),
+        Matcher::Subject(StringMatcher::Contains("urgent".to_string())),
+        Action::Delete,
+    );
+    let rule2 = Rule::new(
+        "delete_test".to_string(),
+        Matcher::Subject(StringMatcher::Contains("test".to_string())),
+        Action::Delete,
+    );
+
+    rule1.match_and_execute(&mut inbox, &mut message).unwrap();
+    rule2.match_and_execute(&mut inbox, &mut message).unwrap();
+
+    assert!(!message.is_valid());
+    assert_eq!(inbox.message_count("INBOX"), 0);
+}
+
+#[test]
+fn test_message_matches_two_rules_first_delete_then_move() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: URGENT Test\r\n\r\nThis is the body.";
+
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+
+    let mut messages = inbox
+        .fetch_all_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let rule1 = Rule::new(
+        "delete_urgent".to_string(),
+        Matcher::Subject(StringMatcher::Contains("urgent".to_string())),
+        Action::Delete,
+    );
+    let rule2 = Rule::new(
+        "move_test".to_string(),
+        Matcher::Subject(StringMatcher::Contains("test".to_string())),
+        Action::Move(Folder {
+            name: "Processed".to_string(),
+        }),
+    );
+
+    rule1.match_and_execute(&mut inbox, &mut message).unwrap();
+    rule2.match_and_execute(&mut inbox, &mut message).unwrap();
+
+    assert!(!message.is_valid());
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Processed"), 0);
+}
+
+#[test]
+fn test_message_matches_two_rules_first_move_then_delete() {
+    let mut inbox = MockInbox::new();
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: URGENT Test\r\n\r\nThis is the body.";
+
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+
+    let mut messages = inbox
+        .fetch_all_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let rule1 = Rule::new(
+        "move_urgent".to_string(),
+        Matcher::Subject(StringMatcher::Contains("urgent".to_string())),
+        Action::Move(Folder {
+            name: "Processed".to_string(),
+        }),
+    );
+    let rule2 = Rule::new(
+        "delete_test".to_string(),
+        Matcher::Subject(StringMatcher::Contains("test".to_string())),
+        Action::Delete,
+    );
+
+    rule1.match_and_execute(&mut inbox, &mut message).unwrap();
+    rule2.match_and_execute(&mut inbox, &mut message).unwrap();
+
+    assert!(!message.is_valid());
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Processed"), 1);
+}
+
+#[test]
+fn test_message_matches_two_rules_both_move_to_different_folders() {
+    let mut inbox = MockInbox::with_folders(vec!["INBOX", "Urgent", "Test"]);
+    let message_body = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: URGENT Test\r\n\r\nThis is the body.";
+
+    inbox.add_message("INBOX", message_body.to_vec()).unwrap();
+    assert_eq!(inbox.message_count("INBOX"), 1);
+
+    let mut messages = inbox
+        .fetch_all_messages_in_folder(&Folder {
+            name: "INBOX".to_string(),
+        })
+        .unwrap();
+    let mut message = messages.remove(0);
+
+    let rule1 = Rule::new(
+        "move_urgent".to_string(),
+        Matcher::Subject(StringMatcher::Contains("urgent".to_string())),
+        Action::Move(Folder {
+            name: "Urgent".to_string(),
+        }),
+    );
+    let rule2 = Rule::new(
+        "move_test".to_string(),
+        Matcher::Subject(StringMatcher::Contains("test".to_string())),
+        Action::Move(Folder {
+            name: "Test".to_string(),
+        }),
+    );
+
+    rule1.match_and_execute(&mut inbox, &mut message).unwrap();
+    rule2.match_and_execute(&mut inbox, &mut message).unwrap();
+
+    assert!(!message.is_valid());
+    assert_eq!(inbox.message_count("INBOX"), 0);
+    assert_eq!(inbox.message_count("Urgent"), 1);
+    assert_eq!(inbox.message_count("Test"), 0);
 }

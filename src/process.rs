@@ -145,6 +145,13 @@ impl StringMatcher {
 impl Action {
     /// Executes the defined action on [inbox](Inbox).
     fn execute(&self, inbox: &mut impl Inbox, message: &mut Message) -> anyhow::Result<()> {
+        if !message.is_valid() {
+            warn!(
+                "Message with UID {:?} is invalid. That usually means that an action was already performed on it.",
+                message.uid()
+            );
+            return Ok(());
+        }
         match self {
             Action::Delete => inbox.delete_message(message)?,
             Action::Move(folder) => inbox.move_message_to_folder(message, folder)?,
