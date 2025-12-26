@@ -40,7 +40,7 @@ pub enum StringMatcher {
 pub struct Rule {
     pub name: String,
     matcher: Matcher,
-    action: Action,
+    pub action: Action,
 }
 
 impl Rule {
@@ -62,6 +62,21 @@ impl Rule {
             self.action.execute(inbox, message)?;
         }
         Ok(())
+    }
+
+    /// Checks whether the message matches the [Matcher] and then logs the [Action] if the
+    /// matcher returned true.
+    pub fn match_and_log(&self, message: &mut Message) -> bool {
+        if self.matcher.matches(message) {
+            info!(
+                "Rule '{}' matched the message with subject '{}'",
+                self.name,
+                message.subject().unwrap_or("Unknown subject".to_string())
+            );
+            true
+        } else {
+            false
+        }
     }
 
     /// Constructs new rule.

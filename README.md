@@ -44,7 +44,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] db path
     - [ ] polling delay
     - [x] check flag
-    - [ ] dry run flag
+    - [x] dry run flag
   - [ ] graceful shutdown for closing imap connection
   - [ ] imap connection retrying with exponential delay
   - [x] what to log? implement logging

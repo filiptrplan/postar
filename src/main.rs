@@ -1,7 +1,13 @@
 use log::{LevelFilter, error, info};
 use std::{panic, path::PathBuf, process::exit};
 
-use postar::{IMAPInbox, Inbox, config::Config, dsl::File, inbox::Folder, process::Rule};
+use postar::{
+    IMAPInbox, Inbox,
+    config::Config,
+    dsl::File,
+    inbox::Folder,
+    process::{Action, Rule},
+};
 
 #[derive(clap::Parser)]
 struct Args {
@@ -37,6 +43,9 @@ struct Args {
     /// Check whether the configuration is valid.
     #[arg(long, default_value_t = false)]
     check: bool,
+    /// Perform a dry run on the most recent 10 messages.
+    #[arg(long, default_value_t = false)]
+    dry_run: bool,
 }
 
 #[derive(clap::ValueEnum, Clone)]
@@ -97,6 +106,33 @@ fn default_rules_path() -> PathBuf {
 fn dry_run(inbox: &mut impl Inbox, folder: &Folder, rules: &Vec<Rule>) -> anyhow::Result<()> {
     info!("Starting the dry run...");
     info!("Fetching the 10 latest messages in folder {}", folder.name);
+    let messages = inbox.fetch_top_n_messages_in_folder(folder, 10)?;
+
+    info!("Running {} rules on the messages.", rules.len());
+
+    let mut deleted_count = 0;
+    let mut moved_count = 0;
+    let mut none_count = 0;
+
+    messages.into_iter().for_each(|mut msg| {
+        rules.iter().for_each(|rule| {
+            let res = rule.match_and_log(&mut msg);
+            if res {
+                match rule.action {
+                    Action::Delete => deleted_count += 1,
+                    Action::Move(_) => moved_count += 1,
+                }
+            } else {
+                none_count += 1;
+            }
+        });
+    });
+
+    info!("== DRY RUN RESULTS ==");
+    info!("No actions were actually performed:");
+    info!(" - Moved {} messages", moved_count);
+    info!(" - Deleted {} messages", deleted_count);
+    info!(" - {} messages didn't match a rule", none_count);
 
     Ok(())
 }
@@ -154,6 +190,12 @@ fn main() -> anyhow::Result<()> {
     });
 
     let folder = Folder::new(server.incoming_folder.clone());
+
+    if args.dry_run {
+        dry_run(&mut inbox, &folder, &rules)?;
+        exit(0);
+    }
+
     info!(
         "Starting polling for new messages in folder {}...",
         folder.name
