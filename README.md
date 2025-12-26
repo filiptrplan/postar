@@ -57,6 +57,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] process messages depending on rules
   - [ ] systemd integration
   - [ ] shell completions with clap_complete
+- [ ] what happens if a message matches two rules?
 - [ ] filter emails by keyword in content or title
 - [ ] check if folder exists first
 - [ ] filter by email

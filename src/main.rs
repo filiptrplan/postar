@@ -115,17 +115,20 @@ fn dry_run(inbox: &mut impl Inbox, folder: &Folder, rules: &Vec<Rule>) -> anyhow
     let mut none_count = 0;
 
     messages.into_iter().for_each(|mut msg| {
+        let mut matched_any = false;
         rules.iter().for_each(|rule| {
             let res = rule.match_and_log(&mut msg);
             if res {
+                matched_any = true;
                 match rule.action {
                     Action::Delete => deleted_count += 1,
                     Action::Move(_) => moved_count += 1,
                 }
-            } else {
-                none_count += 1;
             }
         });
+        if !matched_any {
+            none_count += 1;
+        }
     });
 
     info!("== DRY RUN RESULTS ==");
