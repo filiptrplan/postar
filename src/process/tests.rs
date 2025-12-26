@@ -340,7 +340,7 @@ fn test_action_execute_delete() {
 
     // Get the message and execute delete action
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -367,7 +367,7 @@ fn test_action_execute_move_to_existing_folder() {
 
     // Get the message and execute move action
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -386,7 +386,7 @@ fn test_action_execute_move_to_existing_folder() {
     assert!(!message.is_valid());
 
     // Verify the message exists in the destination folder
-    let moved_messages = inbox.fetch_messages_in_folder(&destination_folder).unwrap();
+    let moved_messages = inbox.fetch_all_messages_in_folder(&destination_folder).unwrap();
     assert_eq!(moved_messages.len(), 1);
     assert_eq!(moved_messages[0].subject().unwrap(), "Test Message");
 }
@@ -403,7 +403,7 @@ fn test_action_execute_move_to_custom_folder() {
 
     // Get the message and execute move action
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -420,7 +420,7 @@ fn test_action_execute_move_to_custom_folder() {
     assert_eq!(inbox.message_count("Archive"), 1);
 
     // Verify the moved message has correct content
-    let moved_messages = inbox.fetch_messages_in_folder(&destination_folder).unwrap();
+    let moved_messages = inbox.fetch_all_messages_in_folder(&destination_folder).unwrap();
     assert_eq!(moved_messages[0].subject().unwrap(), "Archive Me");
 }
 
@@ -434,7 +434,7 @@ fn test_action_execute_move_nonexistent_folder() {
 
     // Get the message and try to move to nonexistent folder
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -466,7 +466,7 @@ fn test_action_execute_delete_invalid_message() {
 
     // Get message and manually mark it as invalid
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -490,7 +490,7 @@ fn test_action_execute_move_invalid_message() {
 
     // Get message and manually mark it as invalid
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();
@@ -522,7 +522,7 @@ fn test_action_execute_multiple_messages() {
 
     // Get all messages
     let mut messages = inbox
-        .fetch_messages_in_folder(&Folder {
+        .fetch_all_messages_in_folder(&Folder {
             name: "INBOX".to_string(),
         })
         .unwrap();

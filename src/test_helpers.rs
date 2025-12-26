@@ -281,7 +281,7 @@ impl Inbox for MockInbox {
             .collect())
     }
 
-    fn fetch_messages_in_folder(&mut self, folder: &Folder) -> Result<Vec<Message>> {
+    fn fetch_all_messages_in_folder(&mut self, folder: &Folder) -> Result<Vec<Message>> {
         if let Some(messages) = self.folders.get(&folder.name) {
             // Create new messages with the same data since Message doesn't implement Clone
             let mut result = Vec::new();
@@ -295,6 +295,44 @@ impl Inbox for MockInbox {
                 }
                 .build();
                 result.push(new_message);
+            }
+            Ok(result)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn fetch_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        uid_start: crate::inbox::UIDRange,
+        uid_end: crate::inbox::UIDRange,
+    ) -> Result<Vec<Message>> {
+        if let Some(messages) = self.folders.get(&folder.name) {
+            let start = match uid_start {
+                crate::inbox::UIDRange::UID(uid) => uid,
+                crate::inbox::UIDRange::Any => 1,
+            };
+            let end = match uid_end {
+                crate::inbox::UIDRange::UID(uid) => uid,
+                crate::inbox::UIDRange::Any => u32::MAX,
+            };
+
+            // Create new messages with the same data since Message doesn't implement Clone
+            let mut result = Vec::new();
+            for msg in messages {
+                let uid = msg.uid().unwrap();
+                if uid >= start && uid <= end {
+                    let new_message = MessageBuilder {
+                        containing_folder: msg.containing_folder().unwrap().clone(),
+                        body: msg.get_body().to_vec(),
+                        uid,
+                        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+                        valid: msg.is_valid(),
+                    }
+                    .build();
+                    result.push(new_message);
+                }
             }
             Ok(result)
         } else {
@@ -369,6 +407,6 @@ impl Inbox for MockInbox {
 
     fn poll_new_messages(&mut self, folder: &Folder) -> Result<Vec<Message>> {
         // For mock inbox, just return existing messages immediately
-        self.fetch_messages_in_folder(folder)
+        self.fetch_all_messages_in_folder(folder)
     }
 }

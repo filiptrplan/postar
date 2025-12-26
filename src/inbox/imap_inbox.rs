@@ -1,6 +1,6 @@
 use crate::{
     config::IMAPConfig,
-    inbox::{Folder, Inbox, Message, MessageBuilder},
+    inbox::{Folder, Inbox, Message, MessageBuilder, UIDRange},
     migrations::MIGRATIONS,
 };
 use anyhow::Context;
@@ -286,7 +286,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             .collect())
     }
 
-    fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
+    fn fetch_all_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>> {
         self.ensure_selected(folder)?;
         let messages = self
             .imap_session
@@ -384,6 +384,32 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             }
         }
         self.fetch_messages_from_last_seen_uid(folder)
+    }
+
+    fn fetch_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        uid_start: UIDRange,
+        uid_end: UIDRange,
+    ) -> anyhow::Result<Vec<Message>> {
+        self.ensure_selected(folder)?;
+        let uid_range = {
+            let start = match uid_start {
+                UIDRange::UID(uid) => uid.to_string(),
+                UIDRange::Any => String::from("*"),
+            };
+            let end = match uid_end {
+                UIDRange::UID(uid) => uid.to_string(),
+                UIDRange::Any => String::from("*"),
+            };
+            format!("{}:{}", start, end)
+        };
+        let messages = self
+            .imap_session
+            .fetch(uid_range, "(FLAGS RFC822 UID)")
+            .with_context(|| format!("Failed to fetch all messages in folder {}", folder.name))?;
+
+        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
     }
 }
 

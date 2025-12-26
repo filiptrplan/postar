@@ -37,7 +37,7 @@ async fn test_send_email() -> anyhow::Result<()> {
     let mut inbox = container_data.create_inbox()?;
     let folder = find_folder_equals(&mut inbox, "INBOX")?;
 
-    let initial_emails = inbox.fetch_messages_in_folder(&folder)?;
+    let initial_emails = inbox.fetch_all_messages_in_folder(&folder)?;
 
     send_test_email(
         &container_data,
@@ -50,7 +50,7 @@ async fn test_send_email() -> anyhow::Result<()> {
     )
     .await?;
 
-    let after_emails = inbox.fetch_messages_in_folder(&folder)?;
+    let after_emails = inbox.fetch_all_messages_in_folder(&folder)?;
 
     assert_eq!(
         initial_emails.len() + 1,
@@ -166,13 +166,13 @@ async fn test_list_folders_can_be_called_multiple_times() -> anyhow::Result<()> 
 
 #[tokio::test]
 #[test_log::test]
-async fn test_fetch_empty_folder() -> anyhow::Result<()> {
+async fn test_fetch_all_messages_empty_folder() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
     let folder = find_folder_contains(&mut inbox, "tests2")?;
 
-    let emails = inbox.fetch_messages_in_folder(&folder)?;
+    let emails = inbox.fetch_all_messages_in_folder(&folder)?;
 
     assert_eq!(emails.len(), 0);
 
@@ -181,13 +181,13 @@ async fn test_fetch_empty_folder() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
+async fn test_fetch_all_messages_contains_correct_count() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let emails = inbox.fetch_messages_in_folder(&folder)?;
+    let emails = inbox.fetch_all_messages_in_folder(&folder)?;
 
     assert_eq!(emails.len(), 11);
 
@@ -196,13 +196,13 @@ async fn test_fetch_folder_contains_correct_count() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_fetch_folder_contains_specific_body_data() -> anyhow::Result<()> {
+async fn test_fetch_all_messages_contains_specific_body_data() -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let emails = inbox.fetch_messages_in_folder(&folder)?;
+    let emails = inbox.fetch_all_messages_in_folder(&folder)?;
 
     let mut body_path = get_mock_email_dir();
     body_path.push("bar@example.com/INBOX/tests1/0.eml");
@@ -232,7 +232,7 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
     let source_folder = find_folder_contains(&mut inbox, "tests1")?;
     let dest_folder = find_folder_contains(&mut inbox, "tests2")?;
 
-    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&source_folder)?;
     let initial_count = messages.len();
 
     assert!(
@@ -250,8 +250,8 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
         "Message should be invalid after move"
     );
 
-    let source_messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
-    let dest_messages_after = inbox.fetch_messages_in_folder(&dest_folder)?;
+    let source_messages_after = inbox.fetch_all_messages_in_folder(&source_folder)?;
+    let dest_messages_after = inbox.fetch_all_messages_in_folder(&dest_folder)?;
 
     assert_eq!(source_messages_after.len(), initial_count - 1);
     assert_eq!(dest_messages_after.len(), 1);
@@ -278,7 +278,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&folder)?;
     let initial_count = messages.len();
 
     assert!(initial_count > 0, "Folder should have messages");
@@ -293,7 +293,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
         "Message should be invalid after move"
     );
 
-    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+    let messages_after = inbox.fetch_all_messages_in_folder(&folder)?;
 
     let moved_message = messages_after
         .iter()
@@ -324,7 +324,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
         name: "INBOX.NonExistingFolder".to_string(),
     };
 
-    let mut messages = inbox.fetch_messages_in_folder(&source_folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&source_folder)?;
     assert!(messages.len() > 0, "Source folder should have messages");
 
     let mut message_to_move = messages.remove(0);
@@ -336,7 +336,7 @@ async fn test_move_message_to_non_existing_folder() -> anyhow::Result<()> {
         "Moving to non-existing folder should fail."
     );
 
-    let messages_after = inbox.fetch_messages_in_folder(&source_folder)?;
+    let messages_after = inbox.fetch_all_messages_in_folder(&source_folder)?;
 
     assert!(
         messages_after
@@ -398,7 +398,7 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&folder)?;
     let initial_count = messages.len();
 
     assert!(initial_count > 0, "Folder should have messages to delete");
@@ -413,7 +413,7 @@ async fn test_delete_valid_message() -> anyhow::Result<()> {
         "Message should be invalid after deletion"
     );
 
-    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+    let messages_after = inbox.fetch_all_messages_in_folder(&folder)?;
     assert_eq!(
         messages_after.len(),
         initial_count - 1,
@@ -503,7 +503,7 @@ async fn test_delete_multiple_messages() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let mut messages = inbox.fetch_messages_in_folder(&folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&folder)?;
     let initial_count = messages.len();
 
     assert!(initial_count >= 2, "Folder should have at least 2 messages");
@@ -519,7 +519,7 @@ async fn test_delete_multiple_messages() -> anyhow::Result<()> {
     assert!(!message1.is_valid(), "First message should be invalid");
     assert!(!message2.is_valid(), "Second message should be invalid");
 
-    let messages_after = inbox.fetch_messages_in_folder(&folder)?;
+    let messages_after = inbox.fetch_all_messages_in_folder(&folder)?;
     assert_eq!(
         messages_after.len(),
         initial_count - 2,
@@ -544,7 +544,7 @@ async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     let billing_message = messages
         .iter()
@@ -568,7 +568,7 @@ async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Resu
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Find a message that might not have a subject
     for message in &messages {
@@ -598,7 +598,7 @@ async fn test_message_from_returns_correct_format() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
         if let Some(from_field) = message.from() {
@@ -624,7 +624,7 @@ async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()>
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Find a message that might not have a from field
     for message in &messages {
@@ -654,7 +654,7 @@ async fn test_message_to_returns_correct_format() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
         if let Some(to_field) = message.to() {
@@ -680,7 +680,7 @@ async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Find a message that might not have a to field
     for message in &messages {
@@ -707,7 +707,7 @@ async fn test_message_fields_consistency() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
         let subject = message.subject();
@@ -744,7 +744,7 @@ async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
         if let Some(from_field) = message.from() {
@@ -797,7 +797,7 @@ async fn test_message_body_returns_content() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Test that body returns some content for messages
     for message in &messages {
@@ -828,7 +828,7 @@ async fn test_message_body_contains_expected_html_content() -> anyhow::Result<()
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Find the billing issues message (0.eml) which has HTML content
     let billing_message = messages
@@ -861,7 +861,7 @@ async fn test_message_body_handles_different_content_types() -> anyhow::Result<(
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Test various messages to ensure body handles different content types
     for (i, message) in messages.iter().enumerate() {
@@ -893,7 +893,7 @@ async fn test_message_body_concatenation_order() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     // Test that HTML bodies come before text bodies in the concatenation
     for message in &messages {
@@ -922,7 +922,7 @@ async fn test_message_body_for_invalid_message() -> anyhow::Result<()> {
 
     let folder = find_folder_contains(&mut inbox, "tests1")?;
 
-    let messages = inbox.fetch_messages_in_folder(&folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&folder)?;
     let mut test_message = messages.into_iter().next().unwrap();
 
     // Make the message invalid

@@ -16,7 +16,7 @@ fn test_mock_inbox_basic_functionality() -> Result<()> {
 
     // Test fetching messages
     let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
-    let messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     assert_eq!(messages.len(), 1);
 
     let message = &messages[0];
@@ -39,18 +39,18 @@ fn test_mock_inbox_move_message() -> Result<()> {
 
     // Get the message and move it to Processed
     let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
-    let mut messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     let mut message = messages.remove(0);
 
     let processed_folder = find_folder_equals(&mut inbox, "Processed")?;
     inbox.move_message_to_folder(&mut message, &processed_folder)?;
 
     // Verify message is no longer in INBOX
-    let inbox_messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let inbox_messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     assert_eq!(inbox_messages.len(), 0);
 
     // Verify message is now in Processed
-    let processed_messages = inbox.fetch_messages_in_folder(&processed_folder)?;
+    let processed_messages = inbox.fetch_all_messages_in_folder(&processed_folder)?;
     assert_eq!(processed_messages.len(), 1);
 
     // Verify original message is marked as invalid
@@ -69,13 +69,13 @@ fn test_mock_inbox_delete_message() -> Result<()> {
 
     // Get the message and delete it
     let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
-    let mut messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let mut messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     let mut message = messages.remove(0);
 
     inbox.delete_message(&mut message)?;
 
     // Verify message is no longer in INBOX
-    let inbox_messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let inbox_messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     assert_eq!(inbox_messages.len(), 0);
 
     // Verify original message is marked as invalid
@@ -121,7 +121,7 @@ fn test_mock_inbox_with_specific_uid() -> Result<()> {
     inbox.add_message("INBOX", test_email.to_vec())?;
 
     let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
-    let messages = inbox.fetch_messages_in_folder(&inbox_folder)?;
+    let messages = inbox.fetch_all_messages_in_folder(&inbox_folder)?;
     assert_eq!(messages.len(), 2);
 
     // Verify UIDs

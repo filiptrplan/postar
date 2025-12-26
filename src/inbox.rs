@@ -8,6 +8,12 @@ pub mod imap_tests;
 pub mod imap_inbox;
 pub use imap_inbox::IMAPInbox;
 
+pub enum UIDRange {
+    UID(u32),
+    /// Equivalent to `*`
+    Any,
+}
+
 /// Trait defining common inbox operations that can be implemented by different email protocols
 pub trait Inbox {
     /// Lists all folders of the inbox session
@@ -15,7 +21,15 @@ pub trait Inbox {
 
     /// Fetches *all* messages in a specific folder, along with their bodies. This could be a quite a
     /// slow operation.
-    fn fetch_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>>;
+    fn fetch_all_messages_in_folder(&mut self, folder: &Folder) -> anyhow::Result<Vec<Message>>;
+
+    /// Fetches the range of UID messages in a specific folder.
+    fn fetch_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        uid_start: UIDRange,
+        uid_end: UIDRange,
+    ) -> anyhow::Result<Vec<Message>>;
 
     /// Moves a message to a destination folder.
     ///
