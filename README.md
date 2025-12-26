@@ -46,7 +46,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] check flag
     - [x] dry run flag
   - [ ] graceful shutdown for closing imap connection
-  - [ ] imap connection retrying with exponential delay
+  - [x] imap connection retrying with exponential delay
   - [x] what to log? implement logging
     - [x] pretty logging with colog
   - [ ] statistics printing
@@ -57,7 +57,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] process messages depending on rules
   - [ ] systemd integration
   - [ ] shell completions with clap_complete
-- [ ] what happens if a message matches two rules?
+- [x] what happens if a message matches two rules?
 - [ ] filter emails by keyword in content or title
 - [ ] check if folder exists first
 - [ ] filter by email

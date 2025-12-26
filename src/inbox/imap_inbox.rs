@@ -9,7 +9,7 @@ use imap::{
     extensions::idle::SetReadTimeout,
     types::{Fetch, ZeroCopy},
 };
-use log::info;
+use log::{info, warn};
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -18,7 +18,8 @@ use std::{
     io::{Read, Write},
     net::TcpStream,
     path::Path,
-    thread, time,
+    thread,
+    time::{self, Duration},
 };
 
 /// Tracks the IMAP state, as there is no built in command for checking that.
@@ -83,9 +84,28 @@ impl IMAPInbox<TlsStream<TcpStream>> {
 
         // we pass in the domain twice to check that the server's TLS
         // certificate is valid for the domain we're connecting to.
-        let client = imap::connect((server, port), server, &tls)
-            .with_context(|| "Failed to connect to IMAP server")?;
+        let client = {
+            let mut connection_attempts: u64 = 0;
+            let mut res = imap::connect((server, port), server, &tls)
+                .with_context(|| "Failed to connect to IMAP server");
+            while let Err(_) = res
+                && connection_attempts < 3
+            {
+                connection_attempts += 1;
+                let sleep_time = (connection_attempts * 2).pow(2);
 
+                warn!(
+                    "Connection attempt failed. Sleeping for {} seconds before retrying.",
+                    sleep_time
+                );
+
+                thread::sleep(Duration::from_secs(sleep_time));
+
+                res = imap::connect((server, port), server, &tls)
+                    .with_context(|| "Failed to connect to IMAP server");
+            }
+            res
+        }?;
         // the client we have here is unauthenticated.
         // to do anything useful with the e-mails, we need to log in
         let mut imap_session = client
@@ -452,7 +472,12 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
         let messages = self
             .imap_session
             .uid_fetch(&uid_set, "(FLAGS RFC822 UID)")
-            .with_context(|| format!("Failed to fetch top {} messages in folder {}", n, folder.name))?;
+            .with_context(|| {
+                format!(
+                    "Failed to fetch top {} messages in folder {}",
+                    n, folder.name
+                )
+            })?;
 
         IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
     }
