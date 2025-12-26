@@ -31,6 +31,13 @@ pub trait Inbox {
         uid_end: UIDRange,
     ) -> anyhow::Result<Vec<Message>>;
 
+    /// Fetches the top n messages in a specific folder (by message number, not UID).
+    fn fetch_top_n_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        n: u32,
+    ) -> anyhow::Result<Vec<Message>>;
+
     /// Moves a message to a destination folder.
     ///
     /// Moving an invalid message or to an invalid folder will still return `Ok` but it will be a

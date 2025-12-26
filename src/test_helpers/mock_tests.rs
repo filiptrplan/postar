@@ -131,3 +131,131 @@ fn test_mock_inbox_with_specific_uid() -> Result<()> {
 
     Ok(())
 }
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_less_than_total() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    // Add 5 messages
+    for i in 1..=5 {
+        let test_email = format!(
+            "From: sender{}@example.com\r\nTo: recipient@example.com\r\nSubject: Test Email {}\r\n\r\nThis is test email body {}.",
+            i, i, i
+        ).as_bytes().to_vec();
+        inbox.add_message("INBOX", test_email)?;
+    }
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch top 3 messages (should be the most recent 3, i.e., UIDs 3, 4, 5)
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 3)?;
+    assert_eq!(messages.len(), 3);
+
+    let uids: Vec<u32> = messages.iter().filter_map(|m| m.uid()).collect();
+    assert_eq!(uids, vec![3, 4, 5]);
+
+    Ok(())
+}
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_equal_to_total() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    // Add 3 messages
+    for i in 1..=3 {
+        let test_email = format!(
+            "From: sender{}@example.com\r\nTo: recipient@example.com\r\nSubject: Test Email {}\r\n\r\nThis is test email body {}.",
+            i, i, i
+        ).as_bytes().to_vec();
+        inbox.add_message("INBOX", test_email)?;
+    }
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch top 3 messages (should get all messages)
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 3)?;
+    assert_eq!(messages.len(), 3);
+
+    let uids: Vec<u32> = messages.iter().filter_map(|m| m.uid()).collect();
+    assert_eq!(uids, vec![1, 2, 3]);
+
+    Ok(())
+}
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_zero() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    // Add 5 messages
+    for i in 1..=5 {
+        let test_email = format!(
+            "From: sender{}@example.com\r\nTo: recipient@example.com\r\nSubject: Test Email {}\r\n\r\nThis is test email body {}.",
+            i, i, i
+        ).as_bytes().to_vec();
+        inbox.add_message("INBOX", test_email)?;
+    }
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch top 0 messages (should get empty vector)
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 0)?;
+    assert_eq!(messages.len(), 0);
+
+    Ok(())
+}
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_greater_than_total() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    // Add 3 messages
+    for i in 1..=3 {
+        let test_email = format!(
+            "From: sender{}@example.com\r\nTo: recipient@example.com\r\nSubject: Test Email {}\r\n\r\nThis is test email body {}.",
+            i, i, i
+        ).as_bytes().to_vec();
+        inbox.add_message("INBOX", test_email)?;
+    }
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch top 10 messages (should get all 3)
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 10)?;
+    assert_eq!(messages.len(), 3);
+
+    let uids: Vec<u32> = messages.iter().filter_map(|m| m.uid()).collect();
+    assert_eq!(uids, vec![1, 2, 3]);
+
+    Ok(())
+}
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_empty_folder() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch from empty folder
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 5)?;
+    assert_eq!(messages.len(), 0);
+
+    Ok(())
+}
+
+#[test_log::test]
+fn test_mock_inbox_fetch_top_n_single_message() -> Result<()> {
+    let mut inbox = MockInbox::new();
+
+    // Add 1 message
+    let test_email = b"From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test Email\r\n\r\nThis is a test email body.";
+    inbox.add_message("INBOX", test_email.to_vec())?;
+
+    let inbox_folder = find_folder_equals(&mut inbox, "INBOX")?;
+
+    // Fetch top 1 message
+    let messages = inbox.fetch_top_n_messages_in_folder(&inbox_folder, 1)?;
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].uid(), Some(1));
+
+    Ok(())
+}

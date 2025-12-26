@@ -1,7 +1,7 @@
 use log::{LevelFilter, error, info};
 use std::{panic, path::PathBuf, process::exit};
 
-use postar::{IMAPInbox, Inbox, config::Config, dsl::File, inbox::Folder};
+use postar::{IMAPInbox, Inbox, config::Config, dsl::File, inbox::Folder, process::Rule};
 
 #[derive(clap::Parser)]
 struct Args {
@@ -92,6 +92,13 @@ fn default_toml_config_path() -> PathBuf {
 
 fn default_rules_path() -> PathBuf {
     default_config_dir().join("rules.ptar")
+}
+
+fn dry_run(inbox: &mut impl Inbox, folder: &Folder, rules: &Vec<Rule>) -> anyhow::Result<()> {
+    info!("Starting the dry run...");
+    info!("Fetching the 10 latest messages in folder {}", folder.name);
+
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {

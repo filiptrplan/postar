@@ -411,6 +411,51 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
 
         IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
     }
+
+    fn fetch_top_n_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        n: u32,
+    ) -> anyhow::Result<Vec<Message>> {
+        self.ensure_selected(folder)?;
+        if n == 0 {
+            return Ok(Vec::new());
+        }
+
+        let all_uids = self
+            .imap_session
+            .uid_search("ALL")
+            .with_context(|| format!("Failed to search messages in folder {}", folder.name))?;
+
+        if all_uids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut sorted_uids: Vec<u32> = all_uids.into_iter().collect();
+        sorted_uids.sort();
+
+        let n = n as usize;
+        let start_idx = if sorted_uids.len() > n {
+            sorted_uids.len() - n
+        } else {
+            0
+        };
+
+        let top_uids: Vec<u32> = sorted_uids[start_idx..].to_vec();
+
+        let uid_set = top_uids
+            .iter()
+            .map(|uid| uid.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let messages = self
+            .imap_session
+            .uid_fetch(&uid_set, "(FLAGS RFC822 UID)")
+            .with_context(|| format!("Failed to fetch top {} messages in folder {}", n, folder.name))?;
+
+        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+    }
 }
 
 impl<T: Read + Write> Drop for IMAPInbox<T> {

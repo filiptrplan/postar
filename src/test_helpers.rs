@@ -409,4 +409,40 @@ impl Inbox for MockInbox {
         // For mock inbox, just return existing messages immediately
         self.fetch_all_messages_in_folder(folder)
     }
+
+    fn fetch_top_n_messages_in_folder(
+        &mut self,
+        folder: &Folder,
+        n: u32,
+    ) -> Result<Vec<Message>> {
+        if let Some(messages) = self.folders.get(&folder.name) {
+            let n = n as usize;
+            if n == 0 {
+                return Ok(Vec::new());
+            }
+
+            // Create new messages with the same data since Message doesn't implement Clone
+            let mut result = Vec::new();
+            let start_idx = if messages.len() > n {
+                messages.len() - n
+            } else {
+                0
+            };
+
+            for msg in messages.iter().skip(start_idx) {
+                let new_message = MessageBuilder {
+                    containing_folder: msg.containing_folder().unwrap().clone(),
+                    body: msg.get_body().to_vec(),
+                    uid: msg.uid().unwrap(),
+                    message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
+                    valid: msg.is_valid(),
+                }
+                .build();
+                result.push(new_message);
+            }
+            Ok(result)
+        } else {
+            Ok(Vec::new())
+        }
+    }
 }
