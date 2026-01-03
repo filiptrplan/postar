@@ -36,20 +36,23 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [x] Ariadne error reporting
 - [x] detecting new emails
 - [ ] CLI
-  - [ ] arguments
+  - [x] arguments
     - [x] config: toml
     - [x] rules: ptar
     - [x] log level
     - [x] choose server: if no default, make argument required
     - [x] db path
-    - [ ] polling delay
+    - [x] polling delay
     - [x] check flag
     - [x] dry run flag
   - [ ] graceful shutdown for closing imap connection
+    - [ ] would be hard to do because the interrupt handler would need to share
+          the connection... would require moving everything to async
   - [x] imap connection retrying with exponential delay
   - [x] what to log? implement logging
     - [x] pretty logging with colog
   - [ ] statistics printing
+    - [ ] maybe store in db all the emails moved for better traceability?
   - [ ] main loop
     - [x] parse rules
     - [x] parse config
@@ -63,9 +66,11 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 - [ ] filter by email
 - [ ] documentation AND man pages!
   - [ ] clap_mangen
-- [ ] hot-reload of config!!
+- [ ] hot-reload of config: this would be a nice to have but not really
+      necessary
 - [ ] notifications for moved emails
-- [ ] persisten storage of state - process new emails upon startup
+- [x] persisten storage of state - process new emails upon startup
+- [ ] maybe move to facet(?)
 
 ## Arch
 
