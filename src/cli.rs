@@ -1,5 +1,7 @@
+use clap::{CommandFactory, ValueHint};
+use clap_complete::{Generator, generate, shells};
 use log::{LevelFilter, error, info};
-use std::{panic, path::PathBuf, process::exit};
+use std::{io, panic, path::PathBuf, process::exit};
 
 use crate::{
     IMAPInbox, Inbox,
@@ -15,13 +17,13 @@ pub struct Args {
     /// Path to the TOML config file.
     ///
     /// This specifies things like default flags and all the connection details.
-    #[arg(short, long, default_value=default_toml_config_path().into_os_string())]
+    #[arg(short, long, default_value=default_toml_config_path().into_os_string(), value_hint=ValueHint::FilePath)]
     config: PathBuf,
     /// Path to the PTAR rules file.
     ///
     /// This specifies how the emails should be filtered and which actions should be executed upon
     /// rule match.
-    #[arg(short, long, default_value=default_rules_path().into_os_string())]
+    #[arg(short, long, default_value=default_rules_path().into_os_string(), value_hint=ValueHint::FilePath)]
     rules: PathBuf,
     /// The logging level.
     #[arg(long, value_enum, default_value_t=Log::Info)]
@@ -30,10 +32,10 @@ pub struct Args {
     ///
     /// It can be either specified in the config file by settings the default option to true or
     /// by passing in this flag.
-    #[arg(long, short)]
+    #[arg(long, short, value_hint=ValueHint::Hostname)]
     server: Option<String>,
     /// Path to the persistent database. Ordinary users should not change this option.
-    #[arg(long, default_value=default_db_path().into_os_string())]
+    #[arg(long, default_value=default_db_path().into_os_string(), value_hint=ValueHint::FilePath)]
     db: PathBuf,
     /// The polling delay when using the polling method for inboxes.
     ///
@@ -47,6 +49,16 @@ pub struct Args {
     /// Perform a dry run on the most recent 10 messages.
     #[arg(long, default_value_t = false)]
     dry_run: bool,
+    /// Outputs completions
+    #[arg(long)]
+    completions: Option<Shell>,
+}
+
+#[derive(clap::ValueEnum, Clone)]
+enum Shell {
+    Zsh,
+    Fish,
+    Bash,
 }
 
 #[derive(clap::ValueEnum, Clone)]
@@ -142,12 +154,43 @@ fn dry_run(inbox: &mut impl Inbox, folder: &Folder, rules: &[Rule]) -> anyhow::R
     Ok(())
 }
 
+/// Outputs shell completions to stdout
+fn print_completions(shell: Shell) {
+    // Have to do it this way because the generator types for clap_complete are not of the same
+    // type and we can pass in a Box<dyn Shell>
+    match shell {
+        Shell::Zsh => generate(
+            shells::Zsh,
+            &mut Args::command(),
+            "postar",
+            &mut io::stdout(),
+        ),
+        Shell::Fish => generate(
+            shells::Fish,
+            &mut Args::command(),
+            "postar",
+            &mut io::stdout(),
+        ),
+        Shell::Bash => generate(
+            shells::Bash,
+            &mut Args::command(),
+            "postar",
+            &mut io::stdout(),
+        ),
+    }
+}
+
 /// The main program loop
 pub fn run() -> anyhow::Result<()> {
     let args = <Args as clap::Parser>::parse();
     env_logger::builder()
         .filter_level(args.log.clone().into())
         .init();
+
+    if let Some(shell) = args.completions {
+        print_completions(shell.clone());
+        exit(0);
+    }
 
     log::info!("Reading config file from: {:?}", args.config);
     let config = match Config::from_file("./postar.toml") {

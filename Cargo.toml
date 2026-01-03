@@ -23,6 +23,7 @@ rusqlite_migration = "2.3.0"
 serde = { version = "1.0.228", features = ["derive"] }
 dirs = "6.0.0"
 env_logger = "0.11.8"
+clap_complete = "4.5.64"
 
 [dev-dependencies]
 mail-send = "0.5.2"

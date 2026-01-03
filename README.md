@@ -35,7 +35,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [ ] Functionality
     - [ ] check if folder exists first
     - [ ] systemd integration
-    - [ ] shell completions with clap_complete
+    - [x] shell completions with clap_complete
   - [ ] documentation AND man pages!
     - [ ] clap_mangen
 
