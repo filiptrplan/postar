@@ -11,6 +11,15 @@
 
 ## Code Style Guidelines
 
+### Logging
+
+- Add logging where appropriate
+- Use the macros: `debug`, `err`, `warn`, `info`, `trace` and keep in mind where
+  does a specific logging level make sense.
+- Warn and err are self-explanatory
+- Info should be used for general user information
+- Debug and trace should be used for hunting bugs
+
 ### Imports & Dependencies
 
 - Use `anyhow::Result<T>` for error handling with `anyhow::Context` for error context
