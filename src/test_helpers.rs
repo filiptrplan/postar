@@ -1,5 +1,6 @@
 use std::{collections::HashMap, env::current_dir, net::TcpStream, path::PathBuf};
 
+use crate::config::PostarConfig;
 use crate::inbox::{Folder, IMAPInbox, Inbox, Message, MessageBuilder};
 use anyhow::Result;
 use mail_parser::MessageParser;
@@ -63,6 +64,7 @@ impl IMAPContainerData {
             "bar@example.com",
             "a",
             true,
+            &PostarConfig::default(),
             ":memory:",
         )
     }

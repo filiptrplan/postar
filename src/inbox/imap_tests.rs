@@ -2,7 +2,8 @@ use anyhow::Context;
 use log::info;
 use mail_parser::MessageParser;
 
-use crate::inbox::{Inbox, Message, MessageBuilder, imap_inbox::IMAPInbox, imap_inbox::InboxState};
+use crate::config::PostarConfig;
+use crate::inbox::{Inbox, Message, MessageBuilder, imap_inbox::IMAPInbox};
 use crate::test_helpers::{
     find_folder_contains, find_folder_equals, get_container, get_host_container,
     get_mock_email_dir, send_email,
@@ -80,6 +81,7 @@ async fn test_new_tls_successful_connection() -> anyhow::Result<()> {
         "bar",
         "a",
         true,
+        &PostarConfig::default(),
         ":memory:",
     )?;
 
@@ -96,6 +98,7 @@ async fn test_new_tls_invalid_host() {
         "user",
         "pass",
         true,
+        &PostarConfig::default(),
         ":memory:",
     );
 
