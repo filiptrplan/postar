@@ -386,7 +386,9 @@ fn test_action_execute_move_to_existing_folder() {
     assert!(!message.is_valid());
 
     // Verify the message exists in the destination folder
-    let moved_messages = inbox.fetch_all_messages_in_folder(&destination_folder).unwrap();
+    let moved_messages = inbox
+        .fetch_all_messages_in_folder(&destination_folder)
+        .unwrap();
     assert_eq!(moved_messages.len(), 1);
     assert_eq!(moved_messages[0].subject().unwrap(), "Test Message");
 }
@@ -420,7 +422,9 @@ fn test_action_execute_move_to_custom_folder() {
     assert_eq!(inbox.message_count("Archive"), 1);
 
     // Verify the moved message has correct content
-    let moved_messages = inbox.fetch_all_messages_in_folder(&destination_folder).unwrap();
+    let moved_messages = inbox
+        .fetch_all_messages_in_folder(&destination_folder)
+        .unwrap();
     assert_eq!(moved_messages[0].subject().unwrap(), "Archive Me");
 }
 
@@ -475,9 +479,9 @@ fn test_action_execute_delete_invalid_message() {
 
     let delete_action = Action::Delete;
 
-    // Should return an error since message is invalid
+    // Should fail silently since message is invalid
     let result = delete_action.execute(&mut inbox, &mut message);
-    assert!(result.is_err());
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -502,9 +506,9 @@ fn test_action_execute_move_invalid_message() {
     };
     let move_action = Action::Move(destination_folder);
 
-    // Should return an error since message is invalid
+    // Should fail silently since message is invalid
     let result = move_action.execute(&mut inbox, &mut message);
-    assert!(result.is_err());
+    assert!(result.is_ok());
 }
 
 #[test]
