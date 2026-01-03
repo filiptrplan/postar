@@ -19,58 +19,25 @@ logic, we will maybe have async handlers for stuff like LLM integration.
 
 ## TODO
 
-- [x] detecting new emails
-  - [x] save last seen uid
-- [x] configuration for different imap servers
-- [x] refactor the API so as not to use with_select but use something like
-      ensure_select
-- [x] ability to login to IMAP email inboxes
-- [x] ability to move emails to different folders
-- [x] ability to delete emails
-- [x] DSL
-  - [x] AST
-  - [x] logos lexer
-    - [x] https://docs.rs/logos/latest/logos/struct.Lexer.html#method.spanned
-  - [x] chumsky parser
-    - [x] https://docs.rs/chumsky/latest/chumsky/input/struct.IterInput.html
-  - [x] Ariadne error reporting
-- [x] detecting new emails
-- [ ] CLI
-  - [x] arguments
-    - [x] config: toml
-    - [x] rules: ptar
-    - [x] log level
-    - [x] choose server: if no default, make argument required
-    - [x] db path
-    - [x] polling delay
-    - [x] check flag
-    - [x] dry run flag
+- [ ] Nice to have
   - [ ] graceful shutdown for closing imap connection
     - [ ] would be hard to do because the interrupt handler would need to share
           the connection... would require moving everything to async
-  - [x] imap connection retrying with exponential delay
-  - [x] what to log? implement logging
-    - [x] pretty logging with colog
   - [ ] statistics printing
     - [ ] maybe store in db all the emails moved for better traceability?
-  - [ ] main loop
-    - [x] parse rules
-    - [x] parse config
-    - [x] poll until new messages
-    - [x] process messages depending on rules
-  - [ ] systemd integration
-  - [ ] shell completions with clap_complete
-- [x] what happens if a message matches two rules?
-- [ ] filter emails by keyword in content or title
-- [ ] check if folder exists first
-- [ ] filter by email
-- [ ] documentation AND man pages!
-  - [ ] clap_mangen
-- [ ] hot-reload of config: this would be a nice to have but not really
-      necessary
-- [ ] notifications for moved emails
-- [x] persisten storage of state - process new emails upon startup
-- [ ] maybe move to facet(?)
+  - [ ] filter emails by keyword in content or title
+  - [ ] filter by email
+  - [ ] hot-reload of config: this would be a nice to have but not really
+        necessary
+  - [ ] notifications for moved emails
+  - [ ] maybe move to facet(?)
+- [ ] for completion:
+  - [ ] Functionality
+    - [ ] check if folder exists first
+    - [ ] systemd integration
+    - [ ] shell completions with clap_complete
+  - [ ] documentation AND man pages!
+    - [ ] clap_mangen
 
 ## Arch
 
