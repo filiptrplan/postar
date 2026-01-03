@@ -1,3 +1,5 @@
+/// Handles the main CLI logic such as argument parsing and the main program loop
+pub mod cli;
 /// Connection configuration logic
 pub mod config;
 /// This module contains everything needed to parse DSL files to actual

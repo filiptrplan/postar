@@ -1,5 +1,5 @@
 use crate::{
-    config::IMAPConfig,
+    config::{IMAPConfig, PostarConfig},
     inbox::{Folder, Inbox, Message, MessageBuilder, UIDRange},
     migrations::MIGRATIONS,
 };
@@ -41,6 +41,7 @@ pub struct IMAPInbox<T: Read + Write> {
     currently_selected_folder: Option<Folder>,
     conn: Connection,
     server_user_id: u16,
+    config: PostarConfig,
 }
 
 /// The capabilities of the IMAP server. Used for checking whether we can perform various
@@ -59,13 +60,18 @@ struct InboxCapabilities {
 
 impl IMAPInbox<TlsStream<TcpStream>> {
     /// Creates an `Inbox` from a config.
-    pub fn from_config<T: AsRef<Path>>(config: &IMAPConfig, db_path: T) -> anyhow::Result<Self> {
+    pub fn from_config<T: AsRef<Path>>(
+        config: &PostarConfig,
+        server: &IMAPConfig,
+        db_path: T,
+    ) -> anyhow::Result<Self> {
         IMAPInbox::new_tls(
-            &config.server,
-            config.port,
-            &config.username,
-            &config.password,
-            config.self_signed_cert,
+            &server.server,
+            server.port,
+            &server.username,
+            &server.password,
+            server.self_signed_cert,
+            config,
             db_path,
         )
     }
@@ -76,6 +82,7 @@ impl IMAPInbox<TlsStream<TcpStream>> {
         user: &str,
         pass: &str,
         use_self_signed_cert: bool,
+        config: &PostarConfig,
         db_path: T,
     ) -> anyhow::Result<Self> {
         let tls = native_tls::TlsConnector::builder()
@@ -167,6 +174,7 @@ impl IMAPInbox<TlsStream<TcpStream>> {
             currently_selected_folder: None,
             conn,
             server_user_id,
+            config: config.clone(),
         })
     }
 }
@@ -386,7 +394,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
         } else {
             loop {
                 let _ = self.imap_session.noop();
-                thread::sleep(time::Duration::from_millis(3000));
+                thread::sleep(time::Duration::from_secs(self.config.polling_delay.into()));
 
                 let last_uid = self.get_last_seen_uid(folder)?.unwrap_or(0);
 

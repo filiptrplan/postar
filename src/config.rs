@@ -8,7 +8,7 @@ pub struct Config {
     pub postar: PostarConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PostarConfig {
     #[serde(default = "default_polling_delay")]
     pub polling_delay: u32,
@@ -51,5 +51,11 @@ impl Config {
         let buf = std::fs::read_to_string(path)?;
         let cfg: Config = toml::from_str(&buf)?;
         Ok(cfg)
+    }
+
+    /// Merge with the main CLI args struct
+    pub fn merge_with_args(mut self, args: &crate::cli::Args) -> Self {
+        self.postar.polling_delay = args.polling_delay.unwrap_or(self.postar.polling_delay);
+        self
     }
 }
