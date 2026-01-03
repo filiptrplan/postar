@@ -31,11 +31,14 @@ logic, we will maybe have async handlers for stuff like LLM integration.
         necessary
   - [ ] notifications for moved emails
   - [ ] maybe move to facet(?)
+  - [ ] comments in ptar rules
 - [ ] for completion:
   - [ ] Functionality
     - [x] check if folder exists first
     - [ ] systemd integration
     - [x] shell completions with clap_complete
+    - [ ] init command for creating a sample config
+    - [ ] separate command for generating completions
   - [ ] documentation AND man pages!
     - [ ] clap_mangen
 
