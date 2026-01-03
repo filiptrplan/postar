@@ -9,7 +9,7 @@ use imap::{
     extensions::idle::SetReadTimeout,
     types::{Fetch, ZeroCopy},
 };
-use log::{info, warn};
+use log::{debug, info, warn};
 use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -337,6 +337,25 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             .ok_or(anyhow::format_err!("Message is invalid"))?;
 
         self.ensure_selected(containing_folder)?;
+
+        // Check if the target folder exists
+        if !self
+            .imap_session
+            .list(None, Some(&destination_folder.name))?
+            .iter()
+            .any(|f| f.name() == destination_folder.name)
+        {
+            info!("Existing folders:");
+            self.imap_session
+                .list(None, Some("*"))?
+                .iter()
+                .for_each(|f| info!(" - {}", f.name()));
+            return Err(anyhow::format_err!(
+                "Destination folder '{}' doesn't exist.",
+                destination_folder.name
+            ));
+        }
+
         // We use the UID MOVE command if it is possible because it is an atomic operation.
         if self.capabilities.has_move {
             self.imap_session
