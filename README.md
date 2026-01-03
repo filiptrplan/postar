@@ -33,7 +33,7 @@ logic, we will maybe have async handlers for stuff like LLM integration.
   - [ ] maybe move to facet(?)
 - [ ] for completion:
   - [ ] Functionality
-    - [ ] check if folder exists first
+    - [x] check if folder exists first
     - [ ] systemd integration
     - [x] shell completions with clap_complete
   - [ ] documentation AND man pages!
