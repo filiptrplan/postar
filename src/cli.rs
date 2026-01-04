@@ -1,7 +1,7 @@
 use clap::{CommandFactory, ValueHint};
-use clap_complete::{Generator, generate, shells};
+use clap_complete::{generate, shells};
 use log::{LevelFilter, error, info};
-use std::{io, panic, path::PathBuf, process::exit};
+use std::{io, path::PathBuf};
 
 use crate::{
     IMAPInbox, Inbox,
@@ -10,6 +10,7 @@ use crate::{
     inbox::Folder,
     process::{Action, Rule},
 };
+use anyhow::Context;
 
 /// The main struct describing the CLI args
 #[derive(clap::Parser)]
@@ -17,14 +18,14 @@ pub struct Args {
     /// Path to the TOML config file.
     ///
     /// This specifies things like default flags and all the connection details.
-    #[arg(short, long, default_value=default_toml_config_path().into_os_string(), value_hint=ValueHint::FilePath)]
-    config: PathBuf,
+    #[arg(short, long, value_hint=ValueHint::FilePath)]
+    config: Option<PathBuf>,
     /// Path to the PTAR rules file.
     ///
     /// This specifies how the emails should be filtered and which actions should be executed upon
     /// rule match.
-    #[arg(short, long, default_value=default_rules_path().into_os_string(), value_hint=ValueHint::FilePath)]
-    rules: PathBuf,
+    #[arg(short, long, value_hint=ValueHint::FilePath)]
+    rules: Option<PathBuf>,
     /// The logging level.
     #[arg(long, value_enum, default_value_t=Log::Info)]
     log: Log,
@@ -35,8 +36,8 @@ pub struct Args {
     #[arg(long, short, value_hint=ValueHint::Hostname)]
     server: Option<String>,
     /// Path to the persistent database. Ordinary users should not change this option.
-    #[arg(long, default_value=default_db_path().into_os_string(), value_hint=ValueHint::FilePath)]
-    db: PathBuf,
+    #[arg(long, value_hint=ValueHint::FilePath)]
+    db: Option<PathBuf>,
     /// The polling delay when using the polling method for inboxes.
     ///
     /// This is relevant when the IDLE capability for IMAP inboxes is not available so the program
@@ -84,36 +85,28 @@ impl From<Log> for LevelFilter {
     }
 }
 
-fn default_config_dir() -> PathBuf {
-    match dirs::config_dir() {
-        None => {
-            error!("Failed to get the default configuration directory.");
-            panic!();
-        }
-        Some(base_dir) => base_dir.join("postar"),
-    }
+fn default_config_dir() -> anyhow::Result<PathBuf> {
+    dirs::config_dir()
+        .map(|base_dir| base_dir.join("postar"))
+        .ok_or_else(|| anyhow::anyhow!("Failed to get the default configuration directory"))
 }
 
-fn default_data_dir() -> PathBuf {
-    match dirs::data_dir() {
-        None => {
-            error!("Failed to get the default data directory.");
-            panic!();
-        }
-        Some(base_dir) => base_dir.join("postar"),
-    }
+fn default_data_dir() -> anyhow::Result<PathBuf> {
+    dirs::data_dir()
+        .map(|base_dir| base_dir.join("postar"))
+        .ok_or_else(|| anyhow::anyhow!("Failed to get the default data directory"))
 }
 
-fn default_db_path() -> PathBuf {
-    default_data_dir().join("postar.db")
+fn default_db_path() -> anyhow::Result<PathBuf> {
+    default_data_dir().map(|path| path.join("postar.db"))
 }
 
-fn default_toml_config_path() -> PathBuf {
-    default_config_dir().join("config.toml")
+fn default_toml_config_path() -> anyhow::Result<PathBuf> {
+    default_config_dir().map(|path| path.join("config.toml"))
 }
 
-fn default_rules_path() -> PathBuf {
-    default_config_dir().join("rules.ptar")
+fn default_rules_path() -> anyhow::Result<PathBuf> {
+    default_config_dir().map(|path| path.join("rules.ptar"))
 }
 
 /// Dry run functionality. Runs all the rules but doesn't execute anything
@@ -183,68 +176,68 @@ fn print_completions(shell: Shell) {
 /// The main program loop
 pub fn run() -> anyhow::Result<()> {
     let args = <Args as clap::Parser>::parse();
+
     env_logger::builder()
         .filter_level(args.log.clone().into())
         .init();
 
     if let Some(shell) = args.completions {
         print_completions(shell.clone());
-        exit(0);
+        return Ok(());
     }
 
-    log::info!("Reading config file from: {:?}", args.config);
-    let config = match Config::from_file("./postar.toml") {
-        Ok(config) => config.merge_with_args(&args),
-        Err(err) => {
-            error!("{}", err);
-            exit(1);
-        }
+    // We are getting the paths this way because setting the default value with clap requires
+    // panicking sometimes and we don't want that.
+    let config_path = match &args.config {
+        Some(path) => path.clone(),
+        None => default_toml_config_path()?,
     };
+    let rules_path = match &args.rules {
+        Some(path) => path.clone(),
+        None => default_rules_path()?,
+    };
+    let db_path = match &args.db {
+        Some(path) => path.clone(),
+        None => default_db_path()?,
+    };
+
+    log::info!("Reading config file from: {:?}", config_path);
+    let config = Config::from_file(&config_path)
+        .with_context(|| "Failed to read config file")?
+        .merge_with_args(&args);
+
     let server = if let Some(server) = args.server {
         config
             .imap
             .iter()
             .find(|imap| imap.name == server)
-            .unwrap_or_else(|| {
-                error!("Failed to find server {} in the config file.", server);
-                exit(1);
-            })
+            .ok_or_else(|| anyhow::anyhow!("Failed to find server {} in the config file", server))?
     } else {
         config.imap.iter().find(|imap| imap.default)
-            .unwrap_or_else(|| {
-                error!("Failed to find a default server. Specify it either with the `default` option in the config file or with the `--server` flag.");
-                exit(1);
-            })
+            .ok_or_else(|| anyhow::anyhow!("Failed to find a default server. Specify it either with the `default` option in the config file or with the `--server` flag."))?
     };
 
-    log::info!("Reading rules from: {:?}", args.rules);
-    let rules = {
-        let mut file = File::new(&args.rules).unwrap_or_else(|err| {
-            error!("Failed to open file {:?}: {}", args.rules, err);
-            exit(1);
-        });
-        file.parse_to_rules().unwrap_or_else(|_| {
-            error!("Failed to parse the rules file {:?}", args.rules);
-            exit(1);
-        })
-    };
+    log::info!("Reading rules from: {:?}", rules_path);
+    let mut file =
+        File::new(&rules_path).with_context(|| format!("Failed to open file {:?}", rules_path))?;
+    let rules = file
+        .parse_to_rules()
+        .with_context(|| format!("Failed to parse the rules file {:?}", rules_path))?;
 
     if args.check {
         println!(" ✓ Configuration valid");
-        exit(0);
+        return Ok(());
     }
 
     info!("Creating inbox...");
-    let mut inbox = IMAPInbox::from_config(&config.postar, server, args.db).unwrap_or_else(|err| {
-        error!("Error while connecting to server: {}", err);
-        exit(1);
-    });
+    let mut inbox = IMAPInbox::from_config(&config.postar, server, db_path)
+        .with_context(|| "Error while connecting to server")?;
 
     let folder = Folder::new(server.incoming_folder.clone());
 
     if args.dry_run {
         dry_run(&mut inbox, &folder, &rules)?;
-        exit(0);
+        return Ok(());
     }
 
     info!(
@@ -252,13 +245,9 @@ pub fn run() -> anyhow::Result<()> {
         folder.name
     );
     loop {
-        let messages = inbox.poll_new_messages(&folder).unwrap_or_else(|err| {
-            error!(
-                "Error while polling for messages in folder {}: {}",
-                folder.name, err
-            );
-            exit(1);
-        });
+        let messages = inbox.poll_new_messages(&folder).with_context(|| {
+            format!("Error while polling for messages in folder {}", folder.name)
+        })?;
         let message_count = messages.len();
         messages.into_iter().for_each(|mut msg| {
             rules.iter().for_each(|rule| {
