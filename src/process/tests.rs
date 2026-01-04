@@ -1,7 +1,6 @@
 use crate::inbox::{Folder, Inbox, Message};
 use crate::process::{Action, Matcher, Rule, StringMatcher};
 use crate::test_helpers::MockInbox;
-use mail_parser::MessageParser;
 use test_log::test;
 
 fn create_fake_message(subject: &str) -> Message {
@@ -14,16 +13,14 @@ fn create_fake_message(subject: &str) -> Message {
         subject
     );
 
-    MessageBuilder {
-        containing_folder: Folder {
+    Message::new(
+        Folder {
             name: "INBOX".to_string(),
         },
-        valid: true,
-        uid: 1,
-        body: email_body.into_bytes(),
-        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-    }
-    .build()
+        1,
+        email_body.into_bytes(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -98,9 +95,9 @@ fn test_string_matcher_with_real_message_subjects() {
     let message2 = create_fake_message("Welcome to our service");
     let message3 = create_fake_message("URGENT: Account Suspension");
 
-    let subject1 = message1.subject().unwrap();
-    let subject2 = message2.subject().unwrap();
-    let subject3 = message3.subject().unwrap();
+    let subject1 = message1.subject.clone().unwrap();
+    let subject2 = message2.subject.clone().unwrap();
+    let subject3 = message3.subject.clone().unwrap();
 
     let billing_matcher = StringMatcher::Contains("billing".to_string());
     assert!(billing_matcher.matches(&subject1));
@@ -352,7 +349,7 @@ fn test_action_execute_delete() {
     // Verify message is deleted from INBOX
     assert_eq!(inbox.message_count("INBOX"), 0);
     // Verify message is marked as invalid
-    assert!(!message.is_valid());
+    assert!(!message.valid);
 }
 
 #[test]
@@ -383,14 +380,14 @@ fn test_action_execute_move_to_existing_folder() {
     assert_eq!(inbox.message_count("INBOX"), 0);
     assert_eq!(inbox.message_count("Processed"), 1);
     // Verify original message is marked as invalid
-    assert!(!message.is_valid());
+    assert!(!message.valid);
 
     // Verify the message exists in the destination folder
     let moved_messages = inbox
         .fetch_all_messages_in_folder(&destination_folder)
         .unwrap();
     assert_eq!(moved_messages.len(), 1);
-    assert_eq!(moved_messages[0].subject().unwrap(), "Test Message");
+    assert_eq!(moved_messages[0].subject.as_deref(), Some("Test Message"));
 }
 
 #[test]
@@ -425,7 +422,7 @@ fn test_action_execute_move_to_custom_folder() {
     let moved_messages = inbox
         .fetch_all_messages_in_folder(&destination_folder)
         .unwrap();
-    assert_eq!(moved_messages[0].subject().unwrap(), "Archive Me");
+    assert_eq!(moved_messages[0].subject.as_deref(), Some("Archive Me"));
 }
 
 #[test]
@@ -457,7 +454,7 @@ fn test_action_execute_move_nonexistent_folder() {
     assert_eq!(inbox.message_count("INBOX"), 0);
     assert_eq!(inbox.message_count("NonExistent"), 0);
     // Original message is marked as invalid
-    assert!(!message.is_valid());
+    assert!(!message.valid);
 }
 
 #[test]
@@ -555,9 +552,9 @@ fn test_action_execute_multiple_messages() {
     assert_eq!(inbox.message_count("Spam"), 1);
 
     // Verify all original messages are marked as invalid
-    assert!(!messages[0].is_valid());
-    assert!(!messages[1].is_valid());
-    assert!(!messages[2].is_valid());
+    assert!(!messages[0].valid);
+    assert!(!messages[1].valid);
+    assert!(!messages[2].valid);
 }
 fn create_message_with_from(subject: &str, from: &str) -> Message {
     let email_body = format!(
@@ -569,16 +566,14 @@ fn create_message_with_from(subject: &str, from: &str) -> Message {
         from, subject
     );
 
-    MessageBuilder {
-        containing_folder: Folder {
+    Message::new(
+        Folder {
             name: "INBOX".to_string(),
         },
-        valid: true,
-        uid: 1,
-        body: email_body.into_bytes(),
-        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-    }
-    .build()
+        1,
+        email_body.into_bytes(),
+    )
+    .unwrap()
 }
 
 fn create_message_with_to(subject: &str, to: &str) -> Message {
@@ -591,16 +586,14 @@ fn create_message_with_to(subject: &str, to: &str) -> Message {
         to, subject
     );
 
-    MessageBuilder {
-        containing_folder: Folder {
+    Message::new(
+        Folder {
             name: "INBOX".to_string(),
         },
-        valid: true,
-        uid: 1,
-        body: email_body.into_bytes(),
-        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-    }
-    .build()
+        1,
+        email_body.into_bytes(),
+    )
+    .unwrap()
 }
 
 fn create_message_with_body(subject: &str, body: &str) -> Message {
@@ -613,16 +606,14 @@ fn create_message_with_body(subject: &str, body: &str) -> Message {
         subject, body
     );
 
-    MessageBuilder {
-        containing_folder: Folder {
+    Message::new(
+        Folder {
             name: "INBOX".to_string(),
         },
-        valid: true,
-        uid: 1,
-        body: email_body.into_bytes(),
-        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-    }
-    .build()
+        1,
+        email_body.into_bytes(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -654,7 +645,7 @@ fn test_message_matches_two_rules_both_delete() {
     rule1.match_and_execute(&mut inbox, &mut message).unwrap();
     rule2.match_and_execute(&mut inbox, &mut message).unwrap();
 
-    assert!(!message.is_valid());
+    assert!(!message.valid);
     assert_eq!(inbox.message_count("INBOX"), 0);
 }
 
@@ -689,7 +680,7 @@ fn test_message_matches_two_rules_first_delete_then_move() {
     rule1.match_and_execute(&mut inbox, &mut message).unwrap();
     rule2.match_and_execute(&mut inbox, &mut message).unwrap();
 
-    assert!(!message.is_valid());
+    assert!(!message.valid);
     assert_eq!(inbox.message_count("INBOX"), 0);
     assert_eq!(inbox.message_count("Processed"), 0);
 }
@@ -725,7 +716,7 @@ fn test_message_matches_two_rules_first_move_then_delete() {
     rule1.match_and_execute(&mut inbox, &mut message).unwrap();
     rule2.match_and_execute(&mut inbox, &mut message).unwrap();
 
-    assert!(!message.is_valid());
+    assert!(!message.valid);
     assert_eq!(inbox.message_count("INBOX"), 0);
     assert_eq!(inbox.message_count("Processed"), 1);
 }
@@ -763,8 +754,9 @@ fn test_message_matches_two_rules_both_move_to_different_folders() {
     rule1.match_and_execute(&mut inbox, &mut message).unwrap();
     rule2.match_and_execute(&mut inbox, &mut message).unwrap();
 
-    assert!(!message.is_valid());
+    assert!(!message.valid);
     assert_eq!(inbox.message_count("INBOX"), 0);
     assert_eq!(inbox.message_count("Urgent"), 1);
     assert_eq!(inbox.message_count("Test"), 0);
 }
+

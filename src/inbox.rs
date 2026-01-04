@@ -71,10 +71,10 @@ impl Folder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
-    containing_folder: Folder,
-    uid: u32,
+    pub containing_folder: Folder,
+    pub uid: u32,
     pub body: String,
     /// Subject field
     pub subject: Option<String>,

@@ -20,10 +20,10 @@ fn test_mock_inbox_basic_functionality() -> Result<()> {
     assert_eq!(messages.len(), 1);
 
     let message = &messages[0];
-    assert_eq!(message.subject(), Some("Test Email".to_string()));
-    assert_eq!(message.from(), Some(" <sender@example.com>".to_string()));
-    assert!(message.body().contains("test email body"));
-    assert!(message.is_valid());
+    assert_eq!(message.subject.as_deref(), Some("Test Email"));
+    assert_eq!(message.from.as_deref(), Some(" <sender@example.com>"));
+    assert!(message.body.contains("test email body"));
+    assert!(message.valid);
     assert_eq!(message.uid(), Some(1));
 
     Ok(())
@@ -54,7 +54,7 @@ fn test_mock_inbox_move_message() -> Result<()> {
     assert_eq!(processed_messages.len(), 1);
 
     // Verify original message is marked as invalid
-    assert!(!message.is_valid());
+    assert!(!message.valid);
 
     Ok(())
 }
@@ -79,7 +79,7 @@ fn test_mock_inbox_delete_message() -> Result<()> {
     assert_eq!(inbox_messages.len(), 0);
 
     // Verify original message is marked as invalid
-    assert!(!message.is_valid());
+    assert!(!message.valid);
 
     Ok(())
 }

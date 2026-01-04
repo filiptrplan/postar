@@ -1,9 +1,8 @@
 use std::{collections::HashMap, env::current_dir, net::TcpStream, path::PathBuf};
 
 use crate::config::PostarConfig;
-use crate::inbox::{Folder, IMAPInbox, Inbox, Message, MessageBuilder};
+use crate::inbox::{Folder, IMAPInbox, Inbox, Message};
 use anyhow::Result;
-use mail_parser::MessageParser;
 use mail_send::SmtpClientBuilder;
 use native_tls::TlsStream;
 use testcontainers::{
@@ -193,14 +192,7 @@ impl MockInbox {
             name: folder_name.to_string(),
         };
 
-        let message = MessageBuilder {
-            containing_folder: folder,
-            body,
-            uid: self.next_uid,
-            message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-            valid: true,
-        }
-        .build();
+        let message = Message::new(folder, self.next_uid, body)?;
 
         self.next_uid += 1;
 
@@ -225,14 +217,7 @@ impl MockInbox {
             name: folder_name.to_string(),
         };
 
-        let message = MessageBuilder {
-            containing_folder: folder,
-            body,
-            uid,
-            message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-            valid: true,
-        }
-        .build();
+        let message = Message::new(folder, uid, body)?;
 
         if let Some(messages) = self.folders.get_mut(folder_name) {
             messages.push(message);
@@ -285,20 +270,7 @@ impl Inbox for MockInbox {
 
     fn fetch_all_messages_in_folder(&mut self, folder: &Folder) -> Result<Vec<Message>> {
         if let Some(messages) = self.folders.get(&folder.name) {
-            // Create new messages with the same data since Message doesn't implement Clone
-            let mut result = Vec::new();
-            for msg in messages {
-                let new_message = MessageBuilder {
-                    containing_folder: msg.containing_folder().unwrap().clone(),
-                    body: msg.get_body().to_vec(),
-                    uid: msg.uid().unwrap(),
-                    message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-                    valid: msg.is_valid(),
-                }
-                .build();
-                result.push(new_message);
-            }
-            Ok(result)
+            Ok(messages.clone())
         } else {
             Ok(Vec::new())
         }
@@ -320,23 +292,11 @@ impl Inbox for MockInbox {
                 crate::inbox::UIDRange::Any => u32::MAX,
             };
 
-            // Create new messages with the same data since Message doesn't implement Clone
-            let mut result = Vec::new();
-            for msg in messages {
-                let uid = msg.uid().unwrap();
-                if uid >= start && uid <= end {
-                    let new_message = MessageBuilder {
-                        containing_folder: msg.containing_folder().unwrap().clone(),
-                        body: msg.get_body().to_vec(),
-                        uid,
-                        message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-                        valid: msg.is_valid(),
-                    }
-                    .build();
-                    result.push(new_message);
-                }
-            }
-            Ok(result)
+            Ok(messages
+                .iter()
+                .filter(|m| m.uid >= start && m.uid <= end)
+                .cloned()
+                .collect())
         } else {
             Ok(Vec::new())
         }
@@ -347,33 +307,23 @@ impl Inbox for MockInbox {
         message: &mut Message,
         destination_folder: &Folder,
     ) -> Result<()> {
-        let containing_folder = message
-            .containing_folder()
-            .ok_or(anyhow::format_err!("Message is invalid"))?;
-
-        let uid = message
-            .uid()
-            .ok_or(anyhow::format_err!("Message is invalid"))?;
+        let containing_folder = &message.containing_folder;
+        let uid = message.uid;
 
         // Find and remove message from source folder
         if let Some(source_messages) = self.folders.get_mut(&containing_folder.name) {
-            let index = source_messages.iter().position(|m| m.uid() == Some(uid));
+            let index = source_messages.iter().position(|m| m.uid == uid);
             if let Some(index) = index {
-                let msg = source_messages.remove(index);
+                let mut msg = source_messages.remove(index);
 
                 // Update the message's containing folder
-                let new_message = MessageBuilder {
-                    containing_folder: destination_folder.clone(),
-                    body: msg.get_body().to_vec(),
-                    uid,
-                    message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-                    valid: true,
-                }
-                .build();
+                msg.containing_folder = destination_folder.clone();
+                // Ensure valid state
+                msg.valid = true;
 
                 // Add to destination folder
                 if let Some(dest_messages) = self.folders.get_mut(&destination_folder.name) {
-                    dest_messages.push(new_message);
+                    dest_messages.push(msg);
                 }
 
                 // Mark original message as invalid
@@ -385,17 +335,12 @@ impl Inbox for MockInbox {
     }
 
     fn delete_message(&mut self, message: &mut Message) -> Result<()> {
-        let containing_folder = message
-            .containing_folder()
-            .ok_or(anyhow::format_err!("Message is invalid"))?;
-
-        let uid = message
-            .uid()
-            .ok_or(anyhow::format_err!("Message is invalid"))?;
+        let containing_folder = &message.containing_folder;
+        let uid = message.uid;
 
         // Find and remove message from folder
         if let Some(messages) = self.folders.get_mut(&containing_folder.name) {
-            let index = messages.iter().position(|m| m.uid() == Some(uid));
+            let index = messages.iter().position(|m| m.uid == uid);
             if let Some(index) = index {
                 messages.remove(index);
             }
@@ -423,26 +368,13 @@ impl Inbox for MockInbox {
                 return Ok(Vec::new());
             }
 
-            // Create new messages with the same data since Message doesn't implement Clone
-            let mut result = Vec::new();
             let start_idx = if messages.len() > n {
                 messages.len() - n
             } else {
                 0
             };
 
-            for msg in messages.iter().skip(start_idx) {
-                let new_message = MessageBuilder {
-                    containing_folder: msg.containing_folder().unwrap().clone(),
-                    body: msg.get_body().to_vec(),
-                    uid: msg.uid().unwrap(),
-                    message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-                    valid: msg.is_valid(),
-                }
-                .build();
-                result.push(new_message);
-            }
-            Ok(result)
+            Ok(messages.iter().skip(start_idx).cloned().collect())
         } else {
             Ok(Vec::new())
         }
