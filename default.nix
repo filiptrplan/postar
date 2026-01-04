@@ -17,9 +17,17 @@ pkgs.rustPlatform.buildRustPackage rec {
   ];
   nativeBuildInputs = with pkgs; [
     pkg-config
+    installShellFiles
   ];
   buildInputs = with pkgs; [
     openssl
     sqlite
   ];
+  postInstall = ''
+    find target -name "*.1" -type f -exec installManPage {} \;
+
+    find target -path "*/comp/*" -name "*.bash" -type f -exec installShellCompletion --bash {} \;
+    find target -path "*/comp/*" -name "*.fish" -type f -exec installShellCompletion --fish {} \;
+    find target -path "*/comp/*" -name "_*" -type f -exec installShellCompletion --zsh {} \;
+  '';
 }
