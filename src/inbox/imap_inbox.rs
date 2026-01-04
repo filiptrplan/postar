@@ -1,6 +1,6 @@
 use crate::{
     config::{IMAPConfig, PostarConfig},
-    inbox::{Folder, Inbox, Message, MessageBuilder, UIDRange},
+    inbox::{Folder, Inbox, Message, UIDRange},
     migrations::MIGRATIONS,
 };
 use anyhow::Context;
@@ -10,7 +10,6 @@ use imap::{
     types::{Fetch, ZeroCopy},
 };
 use log::{debug, info, warn};
-use mail_parser::MessageParser;
 use native_tls::TlsStream;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::{
@@ -267,16 +266,8 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
                     .body()
                     .ok_or(anyhow::format_err!("Message {:?} has no body", x.uid))?
                     .to_owned();
-                Ok(MessageBuilder {
-                    containing_folder: containing_folder.clone(),
-                    body,
-                    uid: x.uid.ok_or(anyhow::format_err!("Message has no UID"))?,
-                    // This is kinda awkward as we panic on parse error
-                    // TODO: fix this
-                    message_builder: |body: &Vec<u8>| MessageParser::default().parse(body).unwrap(),
-                    valid: true,
-                }
-                .build())
+                let uid = x.uid.ok_or(anyhow::format_err!("Message has no UID"))?;
+                Ok(Message::new(containing_folder.clone(), uid, body)?)
             })
             .collect::<Result<Vec<Message>, _>>()
     }

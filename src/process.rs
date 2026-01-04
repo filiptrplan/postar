@@ -57,7 +57,10 @@ impl Rule {
             info!(
                 "Rule '{}' matched the message with subject '{}'",
                 self.name,
-                message.subject().unwrap_or("Unknown subject".to_string())
+                message
+                    .subject
+                    .clone()
+                    .unwrap_or("Unknown subject".to_string())
             );
             self.action.execute(inbox, message)?;
         }
@@ -71,7 +74,10 @@ impl Rule {
             info!(
                 "Rule '{}' matched the message with subject '{}'",
                 self.name,
-                message.subject().unwrap_or("Unknown subject".to_string())
+                &message
+                    .subject
+                    .clone()
+                    .unwrap_or("Unknown subject".to_string())
             );
             true
         } else {
@@ -96,7 +102,7 @@ impl Matcher {
         // doesn't exist
         match self {
             Matcher::Subject(string_matcher) => {
-                if let Some(string) = &message.subject() {
+                if let Some(string) = &message.subject {
                     string_matcher.matches(string)
                 } else {
                     warn!("Failed to get subject.");
@@ -104,7 +110,7 @@ impl Matcher {
                 }
             }
             Matcher::From(string_matcher) => {
-                if let Some(string) = &message.from() {
+                if let Some(string) = &message.from {
                     string_matcher.matches(string)
                 } else {
                     warn!("Failed to get from.");
@@ -112,14 +118,14 @@ impl Matcher {
                 }
             }
             Matcher::To(string_matcher) => {
-                if let Some(string) = &message.to() {
+                if let Some(string) = &message.to {
                     string_matcher.matches(string)
                 } else {
                     warn!("Failed to get to.");
                     false
                 }
             }
-            Matcher::Body(string_matcher) => string_matcher.matches(&message.body()),
+            Matcher::Body(string_matcher) => string_matcher.matches(&message.body),
             Matcher::And(matchers) => matchers.iter().all(|m| m.matches(message)),
             Matcher::Or(matchers) => matchers.iter().any(|m| m.matches(message)),
             Matcher::Not(matcher) => !matcher.matches(message),
@@ -145,7 +151,7 @@ impl StringMatcher {
 impl Action {
     /// Executes the defined action on [inbox](Inbox).
     fn execute(&self, inbox: &mut impl Inbox, message: &mut Message) -> anyhow::Result<()> {
-        if !message.is_valid() {
+        if !message.valid {
             warn!(
                 "Message with UID {:?} is invalid. That usually means that an action was already performed on it.",
                 message.uid()

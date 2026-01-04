@@ -62,7 +62,7 @@ async fn test_send_email() -> anyhow::Result<()> {
     assert!(
         after_emails
             .iter()
-            .any(|x| x.subject().unwrap_or("".to_string()) == "This is a test."),
+            .any(|x| x.subject.unwrap_or("".to_string()) == "This is a test."),
         "The new email should exist."
     );
 
@@ -214,7 +214,7 @@ async fn test_fetch_all_messages_contains_specific_body_data() -> anyhow::Result
     let str2 = str::from_utf8(
         emails
             .iter()
-            .find(|x| x.subject().unwrap().contains("Billing Issues"))
+            .find(|x| x.subject.unwrap().contains("Billing Issues"))
             .unwrap()
             .borrow_body(),
     )
@@ -551,11 +551,11 @@ async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
 
     let billing_message = messages
         .iter()
-        .find(|x| x.subject().unwrap_or_default().contains("Billing Issues"))
+        .find(|x| x.subject.unwrap_or_default().contains("Billing Issues"))
         .ok_or(anyhow::format_err!("Cannot find billing message"))?;
 
     assert_eq!(
-        billing_message.subject().unwrap(),
+        billing_message.subject.unwrap(),
         "Billing Issues",
         "Subject should match expected value"
     );
@@ -565,7 +565,7 @@ async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Result<()> {
+async fn test_message_subject_returns_none_for_missing_subject -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
@@ -575,9 +575,9 @@ async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Resu
 
     // Find a message that might not have a subject
     for message in &messages {
-        if message.subject().is_none() {
+        if message.subject.is_none() {
             assert!(
-                message.subject().is_none(),
+                message.subject.is_none(),
                 "Message should have no subject"
             );
             return Ok(());
@@ -586,7 +586,7 @@ async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Resu
 
     // If all messages have subjects, that's also valid
     assert!(
-        messages.iter().all(|m| m.subject().is_some()),
+        messages.iter().all(|m| m.subject.is_some()),
         "All messages have subjects"
     );
 
@@ -604,7 +604,7 @@ async fn test_message_from_returns_correct_format() -> anyhow::Result<()> {
     let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
-        if let Some(from_field) = message.from() {
+        if let Some(from_field) = message.from {
             // Check that the format follows "name <address>" pattern
             assert!(!from_field.is_empty(), "From field should not be empty");
 
@@ -621,7 +621,7 @@ async fn test_message_from_returns_correct_format() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()> {
+async fn test_message_from_returns_none_for_missing_from -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
@@ -631,9 +631,9 @@ async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()>
 
     // Find a message that might not have a from field
     for message in &messages {
-        if message.from().is_none() {
+        if message.from.is_none() {
             assert!(
-                message.from().is_none(),
+                message.from.is_none(),
                 "Message should have no from field"
             );
             return Ok(());
@@ -642,7 +642,7 @@ async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()>
 
     // If all messages have from fields, that's also valid
     assert!(
-        messages.iter().all(|m| m.from().is_some()),
+        messages.iter().all(|m| m.from.is_some()),
         "All messages have from fields"
     );
 
@@ -660,7 +660,7 @@ async fn test_message_to_returns_correct_format() -> anyhow::Result<()> {
     let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
-        if let Some(to_field) = message.to() {
+        if let Some(to_field) = message.to {
             // Check that the format follows "name <address>" pattern
             assert!(!to_field.is_empty(), "To field should not be empty");
 
@@ -677,7 +677,7 @@ async fn test_message_to_returns_correct_format() -> anyhow::Result<()> {
 
 #[tokio::test]
 #[test_log::test]
-async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
+async fn test_message_to_returns_none_for_missing_to -> anyhow::Result<()> {
     let container_data = get_container().await;
     let mut inbox = container_data.create_inbox()?;
 
@@ -687,15 +687,15 @@ async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
 
     // Find a message that might not have a to field
     for message in &messages {
-        if message.to().is_none() {
-            assert!(message.to().is_none(), "Message should have no to field");
+        if message.to.is_none() {
+            assert!(message.to.is_none(), "Message should have no to field");
             return Ok(());
         }
     }
 
     // If all messages have to fields, that's also valid
     assert!(
-        messages.iter().all(|m| m.to().is_some()),
+        messages.iter().all(|m| m.to.is_some()),
         "All messages have to fields"
     );
 
@@ -713,9 +713,9 @@ async fn test_message_fields_consistency() -> anyhow::Result<()> {
     let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
-        let subject = message.subject();
-        let from = message.from();
-        let to = message.to();
+        let subject = message.subject;
+        let from = message.from;
+        let to = message.to;
 
         // At least one of the fields should be present for a valid email
         assert!(
@@ -750,7 +750,7 @@ async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
     let messages = inbox.fetch_all_messages_in_folder(&folder)?;
 
     for message in &messages {
-        if let Some(from_field) = message.from() {
+        if let Some(from_field) = message.from {
             // Check if multiple addresses are properly formatted with commas
             if from_field.contains(',') {
                 info!("Checking from: {}", from_field);
@@ -770,7 +770,7 @@ async fn test_message_fields_handle_multiple_addresses() -> anyhow::Result<()> {
             }
         }
 
-        if let Some(to_field) = message.to() {
+        if let Some(to_field) = message.to {
             // Check if multiple addresses are properly formatted with commas
             if to_field.contains(',') {
                 let addresses: Vec<&str> = to_field.split(',').collect();
@@ -808,7 +808,7 @@ async fn test_message_body_returns_content() -> anyhow::Result<()> {
         info!(
             "Message {} subject {} length {} raw {}",
             message.uid().unwrap(),
-            message.subject().unwrap(),
+            message.subject.unwrap(),
             body.len(),
             message.borrow_message().raw_message().len()
         );
@@ -836,7 +836,7 @@ async fn test_message_body_contains_expected_html_content() -> anyhow::Result<()
     // Find the billing issues message (0.eml) which has HTML content
     let billing_message = messages
         .iter()
-        .find(|x| x.subject().unwrap_or_default().contains("Billing Issues"))
+        .find(|x| x.subject.unwrap_or_default().contains("Billing Issues"))
         .ok_or(anyhow::format_err!("Cannot find billing message"))?;
 
     let body = billing_message.body();
@@ -979,7 +979,7 @@ async fn test_poll_new_messages_receives_sent_email() -> anyhow::Result<()> {
     assert!(
         result
             .iter()
-            .any(|m| m.subject().unwrap_or_default() == "Poll Test"),
+            .any(|m| m.subject.unwrap_or_default() == "Poll Test"),
         "The polled email should have the correct subject"
     );
 
@@ -1027,7 +1027,7 @@ async fn test_poll_new_messages_blocks_until_arrival() -> anyhow::Result<()> {
     assert!(
         result
             .iter()
-            .any(|m| m.subject().unwrap_or_default() == "Delayed Arrival"),
+            .any(|m| m.subject.unwrap_or_default() == "Delayed Arrival"),
         "The polled email should have the correct subject"
     );
 
@@ -1083,7 +1083,7 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
 
     assert_eq!(result1.len(), 1, "First poll should return 1 message");
     assert_eq!(
-        result1[0].subject().unwrap(),
+        result1[0].subject.unwrap(),
         "Sequential Poll 1",
         "First message should have correct subject"
     );
@@ -1127,7 +1127,7 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
 
     assert_eq!(result2.len(), 1, "Second poll should return 1 message");
     assert_eq!(
-        result2[0].subject().unwrap(),
+        result2[0].subject.unwrap(),
         "Sequential Poll 2",
         "Second message should have correct subject"
     );

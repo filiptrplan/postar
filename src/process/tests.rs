@@ -1,4 +1,4 @@
-use crate::inbox::{Folder, Inbox, Message, MessageBuilder};
+use crate::inbox::{Folder, Inbox, Message};
 use crate::process::{Action, Matcher, Rule, StringMatcher};
 use crate::test_helpers::MockInbox;
 use mail_parser::MessageParser;
