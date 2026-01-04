@@ -31,7 +31,9 @@ The main features include:
 - **QoL features**: Such as an interactive config generator, shell completions
   and man pages built-in.
 
-## Installation {#installation}
+<a name="installation"></a>
+
+## Installation
 
 ## Getting started
 
@@ -44,6 +46,8 @@ init` and following the prompts. For more details consult [the configuration
    making your own rules, refer to [the rules chapter](#dsl).
 4. Launch the program by running `postar`.
 5. That's it! You are ready to take control of your email destiny!
+
+<a name="connection-configuration"></a>
 
 ## Connection configuration {#connection-configuration}
 
@@ -83,6 +87,8 @@ self_signed_cert = true # Optional field to work with local servers
 username = "user2@example.org"
 password = "pass"
 ```
+
+<a name="dsl"></a>
 
 ## Rule DSL {#dsl}
 
