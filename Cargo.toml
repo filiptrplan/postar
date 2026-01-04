@@ -2,6 +2,12 @@
 name = "postar"
 version = "0.1.0"
 edition = "2024"
+description = "A local email filtering service"
+license = "MIT"
+repository = "https://github.com/filiptrplan/postar"
+readme = "README.md"
+keywords = ["email", "filtering", "imap"]
+categories = ["email", "command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0.100"

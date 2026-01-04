@@ -5,6 +5,9 @@ in
 pkgs.rustPlatform.buildRustPackage rec {
   pname = manifest.name;
   version = manifest.version;
+  description = manifest.description;
+  license = manifest.license;
+  homepage = manifest.repository;
   cargoLock.lockFile = ./Cargo.lock;
   src = pkgs.lib.cleanSource ./.;
   checkFlags = [
