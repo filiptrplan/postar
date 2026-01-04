@@ -344,11 +344,7 @@ impl Inbox for MockInbox {
         self.fetch_all_messages_in_folder(folder)
     }
 
-    fn fetch_top_n_messages_in_folder(
-        &mut self,
-        folder: &Folder,
-        n: u32,
-    ) -> Result<Vec<Message>> {
+    fn fetch_top_n_messages_in_folder(&mut self, folder: &Folder, n: u32) -> Result<Vec<Message>> {
         if let Some(messages) = self.folders.get(&folder.name) {
             let n = n as usize;
             if n == 0 {

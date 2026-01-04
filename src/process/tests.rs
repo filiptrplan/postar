@@ -759,4 +759,3 @@ fn test_message_matches_two_rules_both_move_to_different_folders() {
     assert_eq!(inbox.message_count("Urgent"), 1);
     assert_eq!(inbox.message_count("Test"), 0);
 }
-

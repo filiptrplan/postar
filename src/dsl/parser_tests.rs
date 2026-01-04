@@ -954,7 +954,8 @@ fn test_config_edge_case_regex_patterns() {
     assert_eq!(config.rule_definitions.len(), 3);
 
     // Verify regex patterns are preserved correctly
-    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value {
+    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value
+    {
         if let ParserStringMatcher::Regex(pattern) = &string_matcher.value {
             assert!(pattern.contains("@"));
             assert!(pattern.contains("[a-zA-Z0-9"));
@@ -1091,15 +1092,22 @@ fn test_config_duplicated_folder_and_rule_names() {
     assert_eq!(config.rule_definitions.len(), 3);
 
     // Verify similar but distinct names are parsed correctly
-    let folder_names: Vec<_> = config.folder_definitions.iter()
+    let folder_names: Vec<_> = config
+        .folder_definitions
+        .iter()
         .map(|f| &f.value.identifier)
         .collect();
     assert_eq!(folder_names, vec!["inbox", "inbox_test", "inbox_backup"]);
 
-    let rule_names: Vec<_> = config.rule_definitions.iter()
+    let rule_names: Vec<_> = config
+        .rule_definitions
+        .iter()
         .map(|r| &r.value.name)
         .collect();
-    assert_eq!(rule_names, vec!["inbox_spam", "inbox_important", "inbox_newsletter"]);
+    assert_eq!(
+        rule_names,
+        vec!["inbox_spam", "inbox_important", "inbox_newsletter"]
+    );
 }
 
 #[test]
@@ -1129,7 +1137,8 @@ fn test_config_special_characters_in_strings() {
     assert_eq!(config.rule_definitions.len(), 3);
 
     // Verify special characters are handled correctly (they should be normalized)
-    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value {
+    if let ParserMatcher::Subject(string_matcher) = &config.rule_definitions[0].value.matcher.value
+    {
         if let ParserStringMatcher::Contains(content) = &string_matcher.value {
             assert!(content.contains("Hello"));
             assert!(content.contains("World"));
@@ -1350,7 +1359,9 @@ fn test_config_complex_identifier_patterns() {
     assert_eq!(config.rule_definitions.len(), 3);
 
     // Verify identifier patterns are handled correctly
-    let folder_ids: Vec<_> = config.folder_definitions.iter()
+    let folder_ids: Vec<_> = config
+        .folder_definitions
+        .iter()
         .map(|f| &f.value.identifier)
         .collect();
     assert_eq!(folder_ids, vec!["a", "folder_123_456", "test_a_b_c"]);
@@ -1442,7 +1453,9 @@ fn test_config_similar_rule_names() {
     let config = result.into_output().unwrap();
     assert_eq!(config.rule_definitions.len(), 4);
 
-    let rule_names: Vec<_> = config.rule_definitions.iter()
+    let rule_names: Vec<_> = config
+        .rule_definitions
+        .iter()
         .map(|r| &r.value.name)
         .collect();
     assert_eq!(rule_names, vec!["spam", "spam2", "spam_b", "sp_am"]);

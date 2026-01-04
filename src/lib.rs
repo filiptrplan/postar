@@ -1,5 +1,5 @@
 /// Handles the main CLI logic such as argument parsing and the main program loop
-pub(crate) mod cli;
+pub mod cli;
 /// Connection configuration logic
 pub(crate) mod config;
 /// This module contains everything needed to parse DSL files to actual

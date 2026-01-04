@@ -209,8 +209,10 @@ async fn test_fetch_all_messages_contains_specific_body_data() -> anyhow::Result
     let mut body_path = get_mock_email_dir();
     body_path.push("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
-    let _str1 = std::str::from_utf8(&body_data).unwrap().replace("\r\n", "\n");
-    
+    let _str1 = std::str::from_utf8(&body_data)
+        .unwrap()
+        .replace("\r\n", "\n");
+
     // NOTE: The parsed body might not exactly match the original raw email body (headers vs content).
     // The original test compared the raw body. The new Message struct stores the parsed text/html body.
     // For now we skip exact comparison.
@@ -257,8 +259,7 @@ async fn test_move_message_to_another_folder() -> anyhow::Result<()> {
         .expect("Message should be found in destination folder by body content");
 
     assert_eq!(
-        moved_message.body,
-        original_body,
+        moved_message.body, original_body,
         "Persisted body should match the original"
     );
 
@@ -296,8 +297,7 @@ async fn test_move_message_to_same_folder() -> anyhow::Result<()> {
         .expect("Message should be found in destination folder by body content");
 
     assert_eq!(
-        moved_message.body,
-        original_body,
+        moved_message.body, original_body,
         "Persisted body should match the original"
     );
 
@@ -361,11 +361,7 @@ async fn test_move_invalid_message_to_another_folder() -> anyhow::Result<()> {
     body_path.push("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
 
-    let mut message_to_move = Message::new(
-        source_folder.clone(),
-        999999999,
-        body_data
-    ).unwrap();
+    let mut message_to_move = Message::new(source_folder.clone(), 999999999, body_data).unwrap();
 
     let result = inbox.move_message_to_folder(&mut message_to_move, &dest_folder);
 
@@ -434,8 +430,9 @@ async fn test_delete_invalid_message() -> anyhow::Result<()> {
     let mut invalid_message = Message::new(
         folder.clone(),
         999999999, // Non-existent UID
-        body_data
-    ).unwrap();
+        body_data,
+    )
+    .unwrap();
 
     let result = inbox.delete_message(&mut invalid_message);
 
@@ -463,11 +460,7 @@ async fn test_delete_already_invalid_message() -> anyhow::Result<()> {
     let body_path = get_mock_email_dir().join("bar@example.com/INBOX/tests1/0.eml");
     let body_data = std::fs::read(body_path)?;
 
-    let mut invalid_message = Message::new(
-        folder.clone(),
-        1,
-        body_data
-    ).unwrap();
+    let mut invalid_message = Message::new(folder.clone(), 1, body_data).unwrap();
     invalid_message.set_invalid(); // Explicitly set to invalid
 
     let result = inbox.delete_message(&mut invalid_message);
@@ -535,7 +528,12 @@ async fn test_message_subject_returns_correct_value() -> anyhow::Result<()> {
 
     let billing_message = messages
         .iter()
-        .find(|x| x.subject.as_ref().unwrap_or(&String::new()).contains("Billing Issues"))
+        .find(|x| {
+            x.subject
+                .as_ref()
+                .unwrap_or(&String::new())
+                .contains("Billing Issues")
+        })
         .ok_or(anyhow::format_err!("Cannot find billing message"))?;
 
     assert_eq!(
@@ -560,11 +558,8 @@ async fn test_message_subject_returns_none_for_missing_subject() -> anyhow::Resu
     // Find a message that might not have a subject
     for message in &messages {
         if message.subject.is_none() {
-            assert!(
-                message.subject.is_none(),
-                "Message should have no subject"
-            );
-            return Ok(())
+            assert!(message.subject.is_none(), "Message should have no subject");
+            return Ok(());
         }
     }
 
@@ -616,11 +611,8 @@ async fn test_message_from_returns_none_for_missing_from() -> anyhow::Result<()>
     // Find a message that might not have a from field
     for message in &messages {
         if message.from.is_none() {
-            assert!(
-                message.from.is_none(),
-                "Message should have no from field"
-            );
-            return Ok(())
+            assert!(message.from.is_none(), "Message should have no from field");
+            return Ok(());
         }
     }
 
@@ -673,7 +665,7 @@ async fn test_message_to_returns_none_for_missing_to() -> anyhow::Result<()> {
     for message in &messages {
         if message.to.is_none() {
             assert!(message.to.is_none(), "Message should have no to field");
-            return Ok(())
+            return Ok(());
         }
     }
 
@@ -819,7 +811,12 @@ async fn test_message_body_contains_expected_html_content() -> anyhow::Result<()
     // Find the billing issues message (0.eml) which has HTML content
     let billing_message = messages
         .iter()
-        .find(|x| x.subject.as_ref().unwrap_or(&String::new()).contains("Billing Issues"))
+        .find(|x| {
+            x.subject
+                .as_ref()
+                .unwrap_or(&String::new())
+                .contains("Billing Issues")
+        })
         .ok_or(anyhow::format_err!("Cannot find billing message"))?;
 
     let body = &billing_message.body;
@@ -1051,10 +1048,13 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
         let poll_result = inbox
             .poll_new_messages(&folder1)
             .with_context(|| "First poll failed")?;
-        Ok::<(
-            IMAPInbox<native_tls::TlsStream<std::net::TcpStream>>,
-            Vec<Message>,
-        ), anyhow::Error>((inbox, poll_result))
+        Ok::<
+            (
+                IMAPInbox<native_tls::TlsStream<std::net::TcpStream>>,
+                Vec<Message>,
+            ),
+            anyhow::Error,
+        >((inbox, poll_result))
     })
     .await??;
 
@@ -1092,10 +1092,13 @@ async fn test_poll_new_messages_multiple_poll_calls_sequential() -> anyhow::Resu
         let poll_result = inbox
             .poll_new_messages(&folder)
             .with_context(|| "Second poll failed")?;
-        Ok::<(
-            IMAPInbox<native_tls::TlsStream<std::net::TcpStream>>,
-            Vec<Message>,
-        ), anyhow::Error>((inbox, poll_result))
+        Ok::<
+            (
+                IMAPInbox<native_tls::TlsStream<std::net::TcpStream>>,
+                Vec<Message>,
+            ),
+            anyhow::Error,
+        >((inbox, poll_result))
     })
     .await??;
 

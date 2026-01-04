@@ -38,7 +38,8 @@ pub struct File {
 }
 
 impl File {
-    pub fn new(path: &PathBuf) -> anyhow::Result<Self> {
+    pub fn new<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Self> {
+        let path = path.as_ref();
         let input_str = std::fs::read_to_string(path)?;
         Ok(Self {
             contents: input_str,
