@@ -7,16 +7,6 @@
 > **AI Disclosure**: AI coding tools have been involved in the making of this
 > project, but **only** in writing tests. All other bussiness logic is 100% human-made. The logo is also AI generated due to the lack of funds to commission an artist.
 
-## Polling strategy
-
-IMAP is a sequential protocol, so synchronous operations are the way to go. UIDs
-are preserved within a session and the operations are sequential, you must wait
-for a response.
-
-Therefore, we will have a single thread that sequentially first polls for messages
-and then handles them one-by-one. Later, if we have more complicated processing
-logic, we will maybe have async handlers for stuff like LLM integration.
-
 ## TODO
 
 - [ ] Nice to have
@@ -37,17 +27,31 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [x] check if folder exists first
     - [ ] systemd integration
     - [x] shell completions with clap_complete
-    - [ ] init command for creating a sample config
-    - [ ] separate command for generating completions
+    - [x] init command for creating a sample config
+    - [x] separate command for generating completions
   - [ ] documentation AND man pages!
     - [ ] clap_mangen
 
 ## Connection configuration
 
-At the present moment, postar supports only IMAP inboxes. You can configure
-multiple inboxes using a TOML configuration file. The file is located at
-`~/.config/postar/config.toml` by default but you can specify a custom one using
-the `--config` option.
+Currently, `postar` only supports IMAP servers with POP3 support planned for the
+future but currently not a priority as most modern email providers support IMAP.
+
+To interactively generate a connection configuration file you can use the `init`
+command. This command will take you through an interactive questionnaire to let
+you configure your IMAP servers and global `postar` configuration
+
+```bash
+postar init
+```
+
+You can use the `--help` flag to get extra information about the command. By
+default it will write to the default config path and create an example
+`rules.ptar` file too.
+
+You can also configure the program manually using a TOML configuration file. The
+file is located at `~/.config/postar/config.toml` by default but you can specify
+a custom one using the `--config` option.
 
 ```toml
 [[imap]]

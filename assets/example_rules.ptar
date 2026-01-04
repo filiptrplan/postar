@@ -1,0 +1,19 @@
+folder test1 { name: "INBOX.tests1" }
+folder inbox { name: "INBOX" }
+
+rule test {
+  matcher: subject contains "TEST"
+  action: moveto [test1]
+}
+
+
+rule complex_rule {
+  matcher: and [
+    subject contains "HI"
+    or [
+      to startswith "MyName"
+      not from contains "TEST"
+    ]
+  ]
+  action: moveto [test1]
+}

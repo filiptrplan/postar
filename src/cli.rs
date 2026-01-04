@@ -1,15 +1,18 @@
+use chumsky::prelude::custom;
 use clap::{CommandFactory, ValueHint};
 use clap_complete::{generate, shells};
+use inquire::{Confirm, CustomType, Password, Text};
 use log::{LevelFilter, error, info};
+use serde::Serialize;
 use std::{io, path::PathBuf};
 
 use crate::{
-    config::Config,
+    config::{Config, IMAPConfig, PostarConfig},
     dsl::File,
     inbox::{Folder, IMAPInbox, Inbox},
     process::{Action, Rule},
 };
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 
 /// The main struct describing the CLI args
 #[derive(clap::Parser)]
@@ -49,9 +52,30 @@ pub struct Args {
     /// Perform a dry run on the most recent 10 messages.
     #[arg(long, default_value_t = false)]
     dry_run: bool,
-    /// Outputs completions
-    #[arg(long)]
-    completions: Option<Shell>,
+    /// Special subcommands for things like initializing the configuration and completion
+    /// generation
+    #[command(subcommand)]
+    subcommands: Option<Subcommands>,
+}
+
+#[derive(clap::Subcommand)]
+enum Subcommands {
+    /// Outputs shell completions to stdout
+    Completions { shell: Shell },
+    /// Intializes the configuration files
+    Init(InitArgs),
+}
+
+#[derive(clap::Args)]
+struct InitArgs {
+    /// Custom output path for the config file
+    ///
+    /// By default we write the configuration file to the default path depending on your OS.
+    #[arg(long, value_hint=ValueHint::FilePath)]
+    custom_path: Option<PathBuf>,
+    /// Whether to write a sample rules.ptar file to the default path
+    #[arg(long, default_value_t = true)]
+    write_example_rules: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy)]
@@ -172,15 +196,137 @@ fn print_completions(shell: Shell) {
     }
 }
 
+fn prompt_for_server(default: bool) -> anyhow::Result<IMAPConfig> {
+    let name = Text::new("Server name (this is only for referencing the server)").prompt()?;
+
+    let server = Text::new("Server hostname").prompt()?;
+
+    let port = CustomType::<u16>::new("Server port")
+        .with_default(993)
+        .prompt()?;
+
+    let self_signed_cert = Confirm::new("Does the server use a self-signed certificate?")
+        .with_default(false)
+        .prompt()?;
+
+    let username = Text::new("Username").prompt()?;
+
+    let password = Password::new("Password").prompt()?;
+
+    let incoming_folder = Text::new("Incoming folder (usually INBOX)")
+        .with_default("INBOX")
+        .prompt()?;
+
+    Ok(IMAPConfig {
+        name,
+        server,
+        port,
+        self_signed_cert,
+        username,
+        password,
+        default,
+        incoming_folder,
+    })
+}
+
+const EXAMPLE_RULES: &str = include_str!("../assets/example_rules.ptar");
+
+fn initialize_config(args: &InitArgs) -> anyhow::Result<()> {
+    if args.write_example_rules {
+        let rules_path = default_rules_path()?;
+        if rules_path.exists() {
+            println!(
+                "Skipping writing the example rules file at {:?} as it already exists.",
+                rules_path
+            );
+        } else {
+            if let Some(parent) = rules_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&rules_path, EXAMPLE_RULES)?;
+            println!("Written an example rules file to {:?}", rules_path);
+        }
+    }
+
+    let config_path = match &args.custom_path {
+        Some(path) => path,
+        None => &default_toml_config_path()?,
+    };
+
+    // Create any missing directories in path
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    if config_path.exists() {
+        let continue_prompt = Confirm::new(format!("There already exists a configuration file at {:?}. This command will overwrite that file. Do you want to continue?", config_path).as_str()).with_default(false).prompt()?;
+        if !continue_prompt {
+            return Ok(());
+        }
+    }
+
+    let custom_config =
+        Confirm::new("Do you want to configure custom global settings (defaults recommended)?")
+            .with_default(false)
+            .prompt()?;
+    let postar_config = if custom_config {
+        let default = PostarConfig::default();
+        let polling_delay = CustomType::<u32>::new("Polling delay in seconds (used for polling new emails when IDLE capability is not available)").with_default(default.polling_delay).prompt()?;
+        PostarConfig { polling_delay }
+    } else {
+        PostarConfig::default()
+    };
+    let add_default_server =
+        Confirm::new("Do you want to add a default IMAP server (at least one is recommended)?")
+            .with_default(true)
+            .prompt()?;
+
+    let mut servers = Vec::new();
+    if add_default_server {
+        servers.push(prompt_for_server(true)?);
+    }
+
+    loop {
+        let add_server = Confirm::new("Do you want to add an additional IMAP server?")
+            .with_default(false)
+            .prompt()?;
+        if !add_server {
+            break;
+        }
+        servers.push(prompt_for_server(false)?);
+    }
+
+    let config = Config {
+        postar: postar_config,
+        imap: servers,
+    };
+    let toml_config = toml::to_string(&config)?;
+    let config_path = default_toml_config_path()?;
+    if let Some(parent) = config_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&config_path, toml_config)?;
+    println!("Written the configuration to {:?}", config_path);
+
+    Ok(())
+}
+
 /// The main program loop
 pub fn run() -> anyhow::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
     env_logger::builder().filter_level(args.log.into()).init();
 
-    if let Some(shell) = args.completions {
-        print_completions(shell);
-        return Ok(());
+    match args.subcommands {
+        None => {}
+        Some(Subcommands::Init(init_args)) => {
+            initialize_config(&init_args)?;
+            return Ok(());
+        }
+        Some(Subcommands::Completions { shell }) => {
+            print_completions(shell);
+            return Ok(());
+        }
     }
 
     // We are getting the paths this way because setting the default value with clap requires
