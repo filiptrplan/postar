@@ -1,8 +1,6 @@
-# postar
+<p align="center"><img src="logo.png" alt="postar logo" width="400"></p>
 
-<img src="logo.png" alt="postar logo" width="200">
-
-A local email filtering service.
+# Postar: A local email filtering service
 
 <!-- prettier-ignore -->
 > [!NOTE]
@@ -43,46 +41,6 @@ logic, we will maybe have async handlers for stuff like LLM integration.
     - [ ] separate command for generating completions
   - [ ] documentation AND man pages!
     - [ ] clap_mangen
-
-## Architectural Audit Checklist
-
-- [ ] Critical Refactors
-  - [ ] **Panic on Email Parse Error**: Fix `unwrap()` in `src/inbox/imap_inbox.rs` when parsing email bodies to avoid DoS.
-  - [ ] **Process Termination in Library**: Replace `std::process::exit` and `panic!` in `src/cli.rs` with `anyhow::Result` propagation.
-  - [ ] **Async Safety**: Audit IMAP polling logic for future async compatibility.
-- [ ] Idiomatic Improvements
-  - [ ] **Case-Insensitive Comparisons**: Refactor `StringMatcher::matches` in `src/process.rs` to avoid redundant allocations.
-  - [ ] **Condensed Error Handling**: Use `Option::ok_or` / `ok_or_else` instead of `if let Some` blocks.
-  - [ ] **Trait Usage**: Implement `From` / `TryFrom` for common type conversions.
-- [ ] Performance Optimizations
-  - [ ] **DB Transactions**: Wrap related SQL operations in transactions in `src/inbox/imap_inbox.rs`.
-  - [ ] **Buffer Reuse**: Evaluate the use of lazy iterators or buffer reuse in `fetch_response_to_messages`.
-- [ ] Nitpicks & Cleanup
-  - [ ] **Visibility Control**: Use `pub(crate)` in `src/lib.rs` to tighten visibility of internal modules.
-  - [ ] **Hardcoded Paths**: Fix the hardcoded `./postar.toml` path in `src/cli.rs` to correctly use `args.config`.
-  - [ ] **Redundant Clones**: Derive `Copy` for simple enums like `Log` and remove unnecessary `.clone()` calls.
-  - [ ] **Path Handling**: Consistently use `PathBuf` or `&Path` instead of `String` for file paths.
-
-## Arch
-
-- IMAP object
-  - D stores login data
-  - methods to get emails
-  - methods to get all folders
-  - methods to apply filters
-- Email object
-  - stores all the metadata + content
-  - method to move email to another folder
-- Folder object
-  - list all emails in folder
-- Filter object
-  - a collection of rules connected with AND/OR etc.
-  - an action object to be executed
-- Rule object
-  - can be a rule to match an email
-  - or a binary operator to merge multiple sub-rules
-- Action object
-  - performs an action: move, delete, archive, etc.
 
 ## Connection configuration
 
