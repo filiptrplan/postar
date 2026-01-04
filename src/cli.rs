@@ -4,10 +4,9 @@ use log::{LevelFilter, error, info};
 use std::{io, path::PathBuf};
 
 use crate::{
-    IMAPInbox, Inbox,
     config::Config,
     dsl::File,
-    inbox::Folder,
+    inbox::{Folder, IMAPInbox, Inbox},
     process::{Action, Rule},
 };
 use anyhow::Context;
@@ -55,14 +54,14 @@ pub struct Args {
     completions: Option<Shell>,
 }
 
-#[derive(clap::ValueEnum, Clone)]
+#[derive(clap::ValueEnum, Clone, Copy)]
 enum Shell {
     Zsh,
     Fish,
     Bash,
 }
 
-#[derive(clap::ValueEnum, Clone)]
+#[derive(clap::ValueEnum, Clone, Copy)]
 enum Log {
     Off,
     Error,
@@ -177,12 +176,10 @@ fn print_completions(shell: Shell) {
 pub fn run() -> anyhow::Result<()> {
     let args = <Args as clap::Parser>::parse();
 
-    env_logger::builder()
-        .filter_level(args.log.clone().into())
-        .init();
+    env_logger::builder().filter_level(args.log.into()).init();
 
     if let Some(shell) = args.completions {
-        print_completions(shell.clone());
+        print_completions(shell);
         return Ok(());
     }
 

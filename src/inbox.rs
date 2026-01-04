@@ -9,6 +9,7 @@ pub mod imap_tests;
 pub mod imap_inbox;
 pub use imap_inbox::IMAPInbox;
 
+#[derive(Clone, Copy)]
 pub enum UIDRange {
     UID(u32),
     /// Equivalent to `*`
