@@ -24,10 +24,10 @@ pkgs.rustPlatform.buildRustPackage rec {
     sqlite
   ];
   postInstall = ''
-    find target -name "*.1" -type f -exec installManPage {} \;
+    find . -name "*.1" -type f -exec installManPage {} \;
 
-    find target -path "*/comp/*" -name "*.bash" -type f -exec installShellCompletion --bash {} \;
-    find target -path "*/comp/*" -name "*.fish" -type f -exec installShellCompletion --fish {} \;
-    find target -path "*/comp/*" -name "_*" -type f -exec installShellCompletion --zsh {} \;
+    find . -name "*.bash" -type f -exec installShellCompletion --bash {} \;
+    find . -name "*.fish" -type f -exec installShellCompletion --fish {} \;
+    find . -name "_*" -type f -exec installShellCompletion --zsh {} \;
   '';
 }
