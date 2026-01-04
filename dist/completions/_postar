@@ -1,0 +1,136 @@
+#compdef postar
+
+autoload -U is-at-least
+
+_postar() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-c+[Path to the TOML config file]:CONFIG:_files' \
+'--config=[Path to the TOML config file]:CONFIG:_files' \
+'-r+[Path to the PTAR rules file]:RULES:_files' \
+'--rules=[Path to the PTAR rules file]:RULES:_files' \
+'--log=[The logging level]:LOG:(off error warn info debug trace)' \
+'-s+[The server that postar connects to]:SERVER:_hosts' \
+'--server=[The server that postar connects to]:SERVER:_hosts' \
+'--db=[Path to the persistent database. Ordinary users should not change this option]:DB:_files' \
+'--polling-delay=[The polling delay when using the polling method for inboxes]:POLLING_DELAY:_default' \
+'--check[Check whether the configuration is valid]' \
+'--dry-run[Perform a dry run on the most recent 10 messages]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+":: :_postar_commands" \
+"*::: :->postar" \
+&& ret=0
+    case $state in
+    (postar)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:postar-command-$line[1]:"
+        case $line[1] in
+            (completions)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':shell:(zsh fish bash)' \
+&& ret=0
+;;
+(init)
+_arguments "${_arguments_options[@]}" : \
+'--custom-path=[Custom output path for the config file]:CUSTOM_PATH:_files' \
+'--write-example-rules[Whether to write a sample rules.ptar file to the default path]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_postar__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:postar-help-command-$line[1]:"
+        case $line[1] in
+            (completions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(init)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_postar_commands] )) ||
+_postar_commands() {
+    local commands; commands=(
+'completions:Outputs shell completions to stdout' \
+'init:Intializes the configuration files' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'postar commands' commands "$@"
+}
+(( $+functions[_postar__completions_commands] )) ||
+_postar__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar completions commands' commands "$@"
+}
+(( $+functions[_postar__help_commands] )) ||
+_postar__help_commands() {
+    local commands; commands=(
+'completions:Outputs shell completions to stdout' \
+'init:Intializes the configuration files' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'postar help commands' commands "$@"
+}
+(( $+functions[_postar__help__completions_commands] )) ||
+_postar__help__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar help completions commands' commands "$@"
+}
+(( $+functions[_postar__help__help_commands] )) ||
+_postar__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar help help commands' commands "$@"
+}
+(( $+functions[_postar__help__init_commands] )) ||
+_postar__help__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar help init commands' commands "$@"
+}
+(( $+functions[_postar__init_commands] )) ||
+_postar__init_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar init commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_postar" ]; then
+    _postar "$@"
+else
+    compdef _postar postar
+fi

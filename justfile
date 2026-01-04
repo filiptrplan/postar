@@ -14,3 +14,24 @@ cleanup-greenmail:
 create-folder folder server="localhost" port="3143" user="user@example.com" password="a":
   python3 -c "import imaplib; c = imaplib.IMAP4('{{server}}', {{port}}); c.login('{{user}}', '{{password}}'); folder_name = '{{folder}}'; folder_name = folder_name.replace('/', '.'); result = c.create(folder_name); print('Created folder:', folder_name if result[0] == 'OK' else 'Failed:', result); c.logout()"
 
+# Default target
+default: build
+
+build:
+    cargo build --release
+
+extract-assets: build
+    @echo "Extracting assets from build cache..."
+    @mkdir -p dist/man
+    @mkdir -p dist/completions
+    
+    find target/release/build -name "*.1" -type f -exec cp {} dist/man/ \;
+    
+    find target/release/build -name "*.bash" -type f -exec cp {} dist/completions/ \;
+    find target/release/build -name "*.fish" -type f -exec cp {} dist/completions/ \;
+    find target/release/build -name "_*"     -type f -exec cp {} dist/completions/ \;
+
+    @echo "Assets ready in ./dist/"
+
+clean-assets:
+    rm -rf dist

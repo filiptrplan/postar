@@ -1,0 +1,56 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH postar 1  "postar " 
+.SH NAME
+postar \- The main struct describing the CLI args
+.SH SYNOPSIS
+\fBpostar\fR [\fB\-c\fR|\fB\-\-config\fR] [\fB\-r\fR|\fB\-\-rules\fR] [\fB\-\-log\fR] [\fB\-s\fR|\fB\-\-server\fR] [\fB\-\-db\fR] [\fB\-\-polling\-delay\fR] [\fB\-\-check\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIsubcommands\fR]
+.SH DESCRIPTION
+The main struct describing the CLI args
+.SH OPTIONS
+.TP
+\fB\-c\fR, \fB\-\-config\fR \fI<CONFIG>\fR
+Path to the TOML config file.
+
+This specifies things like default flags and all the connection details.
+.TP
+\fB\-r\fR, \fB\-\-rules\fR \fI<RULES>\fR
+Path to the PTAR rules file.
+
+This specifies how the emails should be filtered and which actions should be executed upon rule match.
+.TP
+\fB\-\-log\fR \fI<LOG>\fR [default: info]
+The logging level
+.br
+
+.br
+[\fIpossible values: \fRoff, error, warn, info, debug, trace]
+.TP
+\fB\-s\fR, \fB\-\-server\fR \fI<SERVER>\fR
+The server that postar connects to.
+
+It can be either specified in the config file by settings the default option to true or by passing in this flag.
+.TP
+\fB\-\-db\fR \fI<DB>\fR
+Path to the persistent database. Ordinary users should not change this option
+.TP
+\fB\-\-polling\-delay\fR \fI<POLLING_DELAY>\fR
+The polling delay when using the polling method for inboxes.
+
+This is relevant when the IDLE capability for IMAP inboxes is not available so the program must poll. This can be either specified as a flag or in the config file.
+.TP
+\fB\-\-check\fR
+Check whether the configuration is valid
+.TP
+\fB\-\-dry\-run\fR
+Perform a dry run on the most recent 10 messages
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.SH SUBCOMMANDS
+.TP
+postar\-completions(1)
+Outputs shell completions to stdout
+.TP
+postar\-init(1)
+Intializes the configuration files

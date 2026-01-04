@@ -1,0 +1,21 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH postar-init 1  "init " 
+.SH NAME
+postar\-init \- Intializes the configuration files
+.SH SYNOPSIS
+\fBpostar init\fR [\fB\-\-custom\-path\fR] [\fB\-\-write\-example\-rules\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Intializes the configuration files
+.SH OPTIONS
+.TP
+\fB\-\-custom\-path\fR \fI<CUSTOM_PATH>\fR
+Custom output path for the config file
+
+By default we write the configuration file to the default path depending on your OS.
+.TP
+\fB\-\-write\-example\-rules\fR
+Whether to write a sample rules.ptar file to the default path
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)

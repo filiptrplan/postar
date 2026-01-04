@@ -57,7 +57,7 @@ impl Config {
     }
 
     /// Merge with the main CLI args struct
-    pub fn merge_with_args(mut self, args: &crate::cli::Args) -> Self {
+    pub fn merge_with_args(mut self, args: &crate::cli::args::Args) -> Self {
         self.postar.polling_delay = args.polling_delay.unwrap_or(self.postar.polling_delay);
         self
     }
