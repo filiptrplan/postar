@@ -196,15 +196,10 @@ impl MockInbox {
 
         self.next_uid += 1;
 
-        if let Some(messages) = self.folders.get_mut(folder_name) {
-            messages.push(message);
-            Ok(())
-        } else {
-            Err(anyhow::format_err!(
-                "Folder '{}' does not exist",
-                folder_name
-            ))
-        }
+        self.folders
+            .get_mut(folder_name)
+            .ok_or_else(|| anyhow::format_err!("Folder '{}' does not exist", folder_name))
+            .map(|messages| messages.push(message))
     }
 
     pub fn add_message_with_uid(
@@ -219,18 +214,15 @@ impl MockInbox {
 
         let message = Message::new(folder, uid, body)?;
 
-        if let Some(messages) = self.folders.get_mut(folder_name) {
-            messages.push(message);
-            if uid >= self.next_uid {
-                self.next_uid = uid + 1;
-            }
-            Ok(())
-        } else {
-            Err(anyhow::format_err!(
-                "Folder '{}' does not exist",
-                folder_name
-            ))
-        }
+        self.folders
+            .get_mut(folder_name)
+            .ok_or_else(|| anyhow::format_err!("Folder '{}' does not exist", folder_name))
+            .map(|messages| {
+                messages.push(message);
+                if uid >= self.next_uid {
+                    self.next_uid = uid + 1;
+                }
+            })
     }
 
     pub fn message_count(&self, folder_name: &str) -> usize {
@@ -241,15 +233,10 @@ impl MockInbox {
     }
 
     pub fn clear_folder(&mut self, folder_name: &str) -> Result<()> {
-        if let Some(messages) = self.folders.get_mut(folder_name) {
-            messages.clear();
-            Ok(())
-        } else {
-            Err(anyhow::format_err!(
-                "Folder '{}' does not exist",
-                folder_name
-            ))
-        }
+        self.folders
+            .get_mut(folder_name)
+            .ok_or_else(|| anyhow::format_err!("Folder '{}' does not exist", folder_name))
+            .map(|messages| messages.clear())
     }
 }
 

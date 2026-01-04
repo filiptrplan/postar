@@ -135,6 +135,10 @@ impl Matcher {
 
 impl StringMatcher {
     fn matches(&self, input: &str) -> bool {
+        // NOTE: We are using to_lowercase here because we assume that it doesn't have a big
+        // performance hit when creating new strings. If it turns out to be too slow, we will
+        // handle that later but this is currently the easiest way to do case-insensitive
+        // comparisons.
         match self {
             StringMatcher::Contains(pattern) => {
                 input.to_lowercase().contains(&pattern.to_lowercase())
