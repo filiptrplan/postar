@@ -1,11 +1,13 @@
 # postar
 
+<img src="logo.png" alt="postar logo" width="200">
+
 A local email filtering service.
 
 <!-- prettier-ignore -->
 > [!NOTE]
 > **AI Disclosure**: AI coding tools have been involved in the making of this
-> project, but **only** in writing tests. All other bussiness logic is 100% human-made.
+> project, but **only** in writing tests. All other bussiness logic is 100% human-made. The logo is also AI generated due to the lack of funds to commission an artist.
 
 ## Polling strategy
 
