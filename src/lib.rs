@@ -1,17 +1,15 @@
 /// Handles the main CLI logic such as argument parsing and the main program loop
-pub mod cli;
+pub(crate) mod cli;
 /// Connection configuration logic
-pub mod config;
+pub(crate) mod config;
 /// This module contains everything needed to parse DSL files to actual
 /// [rules](crate::process::Rule)
-pub mod dsl;
+pub(crate) mod dsl;
 /// Deals with interfacing with the underlying email server whether it be IMAP or POP3
-pub mod inbox;
+pub(crate) mod inbox;
 /// The module containing migrations for the SQLite database
-pub mod migrations;
+pub(crate) mod migrations;
 /// Matches emails to rules and executes the corresponding actions.
-pub mod process;
+pub(crate) mod process;
 #[cfg(test)]
-pub mod test_helpers;
-
-pub use inbox::{IMAPInbox, Inbox};
+pub(crate) mod test_helpers;
