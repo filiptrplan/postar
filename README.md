@@ -1,4 +1,4 @@
-<p align="center"><img src="logo.png" alt="postar logo" width="400"></p>
+<p align="center"><img src="logo-small.png" alt="postar logo" width="400"></p>
 
 # Postar: A local email filtering service
 
