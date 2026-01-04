@@ -49,7 +49,7 @@ init` and following the prompts. For more details consult [the configuration
 
 <a name="connection-configuration"></a>
 
-## Connection configuration {#connection-configuration}
+## Connection configuration
 
 Currently, `postar` only supports IMAP servers with POP3 support planned for the
 future but currently not a priority as most modern email providers support IMAP.
@@ -90,7 +90,7 @@ password = "pass"
 
 <a name="dsl"></a>
 
-## Rule DSL {#dsl}
+## Rule DSL
 
 ## TODO
 
@@ -116,3 +116,10 @@ password = "pass"
     - [x] separate command for generating completions
   - [ ] documentation AND man pages!
     - [ ] clap_mangen
+  - [ ] documentation
+    - [ ] installation documentation
+    - [ ] complete documentation for the TOML configuration file
+    - [ ] direct the user to the --help flags or man pages for the cli reference
+      - [ ] fill in the description and long about sections for the commands
+      - [ ] document all the flags extensively
+    - [ ] complete DSL documentation with some more examples
