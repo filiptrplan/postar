@@ -1,5 +1,5 @@
 {
-  description = "A devShell example";
+  description = "An email filtering program an service";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -45,5 +45,9 @@
             ];
           };
       }
-    );
+    )
+    // {
+      homeManagerModules.default = import ./hm-module.nix self;
+      homeManagerModules.postar = self.homeManagerModules.default;
+    };
 }

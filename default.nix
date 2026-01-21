@@ -25,7 +25,6 @@ pkgs.rustPlatform.buildRustPackage rec {
   ];
   postInstall = ''
     find . -name "*.1" -type f | while read -r file; do installManPage "$file"; done
-
     find . -name "*.bash" -type f | while read -r file; do installShellCompletion --bash "$file"; done
     find . -name "*.fish" -type f | while read -r file; do installShellCompletion --fish "$file"; done
     find . -name "_*" -type f | while read -r file; do installShellCompletion --zsh "$file"; done
