@@ -54,6 +54,9 @@ init` and following the prompts. For more details consult [the configuration
 Currently, `postar` only supports IMAP servers with POP3 support planned for the
 future but currently not a priority as most modern email providers support IMAP.
 
+> [!IMPORTANT]
+> Currently the IMAP server must support SSL/TLS.
+
 To interactively generate a connection configuration file you can use the `init`
 command. This command will take you through an interactive questionnaire to let
 you configure your IMAP servers and global `postar` configuration
@@ -88,6 +91,67 @@ username = "user2@example.org"
 password = "pass"
 ```
 
+### TOML configuration reference
+
+We have two available sections. `[postar]` is the global configuration section
+where you can configure global options such as the polling delay for new emails.
+This section can be defined at most once.
+
+The other section is the IMAP mailbox section `[[imap]]` that defines a single IMAP
+mailbox. This section can be repeated any number of times.
+
+#### `[postar]` section
+
+**Options**:
+
+- `polling_delay`: Configures the polling delay in seconds for fetching new
+  emails. Only applicable when the `IDLE` capability is not available in the
+  mailbox.
+  - _Type_: `integer`
+  - _Default value_: `3`
+  - _Required_: No
+
+#### `[[imap]]` section
+
+**Options**:
+
+- `name`: Name for your mailbox. Used for referencing it in commands. E.g.
+  `MyMailbox`
+  - _Type_: `string`
+  - _Default value_: N/A
+  - _Required_: Yes
+- `server`: Hostname of the IMAP server. E.g. `mail.example.com`
+  - _Type_: `string`
+  - _Default value_: N/A
+  - _Required_: Yes
+- `port`: Port of the IMAP server. E.g. `993`
+  - _Type_: `integer`
+  - _Default value_: N/A
+  - _Required_: Yes
+- `username`: Username for the IMAP server.
+  - _Type_: `string`
+  - _Default value_: N/A
+  - _Required_: Yes
+- `password`: Password for the IMAP server.
+  - _Type_: `string`
+  - _Default value_: N/A
+  - _Required_: Yes
+- `default`: Whether the mailbox is the default one used when none is specified
+  via flag. At most one mailbox can have this setting as `true`
+  - _Type_: `boolean`
+  - _Default value_: `false`
+  - _Required_: No
+- `incoming_folder`: The folder where all incoming emails are received.
+  Recommended to be left default. E.g.
+  `INBOX.Subfolder`
+  - _Type_: `string`
+  - _Default value_: `INBOX`
+  - _Required_: No
+- `self_signed_cert`: Whether the server uses a self-signed certificate.
+  - _Type_: `boolean`
+  - _Default value_: `false`
+  - _Required_: No
+
 <a name="dsl"></a>
 
 ## Rule DSL
@@ -95,6 +159,7 @@ password = "pass"
 ## TODO
 
 - [ ] Nice to have
+  - [ ] benchmarking of performance
   - [ ] graceful shutdown for closing imap connection
     - [ ] would be hard to do because the interrupt handler would need to share
           the connection... would require moving everything to async
@@ -107,6 +172,7 @@ password = "pass"
   - [ ] notifications for moved emails
   - [ ] maybe move to facet(?)
   - [ ] comments in ptar rules
+  - [ ] ability to import text files as lists
 - [ ] for completion:
   - [ ] Functionality
     - [x] check if folder exists first
