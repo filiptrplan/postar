@@ -258,15 +258,18 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
     fn fetch_response_to_messages(
         response: ZeroCopy<Vec<Fetch>>,
         containing_folder: &Folder,
-    ) -> anyhow::Result<Vec<Message>> {
+    ) -> Vec<Message> {
         response
             .into_iter()
-            .map(|x| {
-                let body = x.body().map(|x| x.to_owned()).unwrap_or(Vec::new());
-                let uid = x.uid.ok_or(anyhow::format_err!("Message has no UID."))?;
-                Message::new(containing_folder.clone(), uid, body)
+            .filter_map(|x| {
+                {
+                    let body = x.body().map(|x| x.to_owned()).unwrap_or(Vec::new());
+                    let uid = x.uid?;
+                    Message::new(containing_folder.clone(), uid, body)
+                }
+                .ok()
             })
-            .collect::<Result<Vec<Message>, _>>()
+            .collect()
     }
 
     fn fetch_messages_from_last_seen_uid(
@@ -279,7 +282,7 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
             .imap_session
             .uid_fetch(format!("{}:*", last_uid + 1), "(FLAGS RFC822 UID)")
             .with_context(|| format!("Failed to fetch messages in folder {}", folder.name))?;
-        let result = IMAPInbox::<T>::fetch_response_to_messages(response, folder)?;
+        let result = IMAPInbox::<T>::fetch_response_to_messages(response, folder);
         let highest_uid = result.iter().map(|msg| msg.uid().unwrap_or(last_uid)).max();
         if let Some(uid) = highest_uid {
             self.conn.execute(
