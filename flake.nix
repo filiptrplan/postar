@@ -47,7 +47,7 @@
       }
     )
     // {
-      homeManagerModules.default = import ./hm-module.nix self;
+      homeManagerModules.default = import ./hm-module.nix { inherit self; };
       homeManagerModules.postar = self.homeManagerModules.default;
     };
 }

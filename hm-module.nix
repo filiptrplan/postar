@@ -1,13 +1,13 @@
+{ self }:
 {
   config,
   pkgs,
   lib,
-  self,
   ...
 }:
 let
   cfgProgram = config.programs.postar;
-  cfgService = config.service.postar;
+  cfgService = config.services.postar;
   postarPackage = self.packages.${pkgs.system}.default;
   tomlFormat = pkgs.formats.toml { };
 in
@@ -20,7 +20,7 @@ with lib;
       default = postarPackage;
       description = "The postar package to use.";
     };
-    config = {
+    config = mkOption {
       type = tomlFormat.type;
       description = ''
         Configuration written to {file}`$XDG_CONFIG_HOME/postar/config.toml`
@@ -48,10 +48,10 @@ with lib;
         ];
         postar = {
           polling_delay = 5;
-        }
+        };
       '';
     };
-    rules = {
+    rules = mkOption {
       type = types.str;
       default = "";
       description = ''
@@ -89,17 +89,22 @@ with lib;
       description = "The postar package to use.";
     };
   };
-  config =
-    mkIf cfgProgram.enable {
-      home.packages = mkIf (cfgProgram.package != null) [ cfgProgram.package ];
+  config = mkMerge [
+    (mkIf cfgProgram.enable {
+      home.packages = mkIf (cfgProgram.package != null) [
+        # Parentheses are REQUIRED here, otherwise you are adding
+        # the function 'trace' itself to your packages list
+        cfgProgram.package
+      ];
       xdg.configFile."postar/config.toml" = mkIf (cfgProgram.config != { }) {
         source = tomlFormat.generate "config.toml" cfgProgram.config;
       };
       xdg.configFile."postar/rules.ptar" = mkIf (cfgProgram.rules != "") {
         text = cfgProgram.rules;
       };
-    }
-    // mkIf cfgService.enable {
+    })
+
+    (mkIf cfgService.enable {
       systemd.user.services.postar = {
         Unit = {
           Description = "An email filtering service.";
@@ -113,5 +118,6 @@ with lib;
           ExecStart = "${cfgService.package}/bin/postar";
         };
       };
-    };
+    })
+  ];
 }

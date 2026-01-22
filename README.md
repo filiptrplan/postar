@@ -35,6 +35,14 @@ The main features include:
 
 ## Installation
 
+This project supports two main ways of installation. Either via `cargo` or with
+a Nix flake. We also provide the compiled binaries in the Releases section.
+
+If you are using Nix, we recommend doing it this way because you can setup the
+service and configuration with our included Home Manager module.
+
+### Cargo
+
 ## Getting started
 
 1. Install the program. This is covered under [Installation](#installation).
@@ -48,6 +56,60 @@ init` and following the prompts. For more details consult [the configuration
 5. That's it! You are ready to take control of your email destiny!
 
 <a name="connection-configuration"></a>
+
+## CLI usage
+
+For the most up-to-date reference of what CLI options are available, run `postar
+--help` or read the manpages at `man postar`. Here is the output of this command
+as of the time of writing, but is not guaranteed to be updated.
+
+```txt
+Usage: postar [OPTIONS] [COMMAND]
+
+Commands:
+  completions  Outputs shell completions to stdout
+  init         Intializes the configuration files
+  help         Print this message or the help of the given subcommand(s)
+
+Options:
+  -c, --config <CONFIG>
+          Path to the TOML config file.
+
+          This specifies things like default flags and all the connection details.
+
+  -r, --rules <RULES>
+          Path to the PTAR rules file.
+
+          This specifies how the emails should be filtered and which actions should be executed upon rule match.
+
+      --log <LOG>
+          The logging level
+
+          [default: info]
+          [possible values: off, error, warn, info, debug, trace]
+
+  -s, --server <SERVER>
+          The server that postar connects to.
+
+          It can be either specified in the config file by settings the default option to true or by passing in this flag.
+
+      --db <DB>
+          Path to the persistent database. Ordinary users should not change this option
+
+      --polling-delay <POLLING_DELAY>
+          The polling delay when using the polling method for inboxes.
+
+          This is relevant when the IDLE capability for IMAP inboxes is not available so the program must poll. This can be either specified as a flag or in the config file.
+
+      --check
+          Check whether the configuration is valid
+
+      --dry-run
+          Perform a dry run on the most recent 10 messages
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
 
 ## Connection configuration
 
@@ -175,17 +237,18 @@ mailbox. This section can be repeated any number of times.
   - [ ] ability to import text files as lists
 - [ ] for completion:
   - [ ] Functionality
+    - [ ] encrypt the passwords at least somewhat!
     - [x] check if folder exists first
-    - [ ] systemd integration
+    - [x] systemd integration
     - [x] shell completions with clap_complete
     - [x] init command for creating a sample config
     - [x] separate command for generating completions
   - [ ] documentation AND man pages!
-    - [ ] clap_mangen
+    - [x] clap_mangen
   - [ ] documentation
     - [ ] installation documentation
-    - [ ] complete documentation for the TOML configuration file
-    - [ ] direct the user to the --help flags or man pages for the cli reference
+    - [x] complete documentation for the TOML configuration file
+    - [x] direct the user to the --help flags or man pages for the cli reference
       - [ ] fill in the description and long about sections for the commands
       - [ ] document all the flags extensively
     - [ ] complete DSL documentation with some more examples
