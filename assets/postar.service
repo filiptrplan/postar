@@ -1,0 +1,9 @@
+[Unit]
+Description=An email filtering service.
+After=network-online.target
+
+[Service]
+ExecStart=%h/.cargo/bin/postar
+
+[Install]
+WantedBy=default.target

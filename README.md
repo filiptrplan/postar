@@ -43,6 +43,92 @@ service and configuration with our included Home Manager module.
 
 ### Cargo
 
+You can install `postar` by running:
+
+```bash
+cargo install postar
+```
+
+or just downloading the binary from [Releases](https://github.com/filiptrplan/postar/releases)
+and putting into your `PATH`.
+
+To install the service, copy [this file](./assets/postar.service) to
+`~/.config/systemd/user/` and run the following commands:
+
+```bash
+systemctl --user enable postar.service # this will enable the service on startup
+systemctl --user start postar.service
+```
+
+### Nix
+
+There are two ways to install this package with Nix. You can either just use the
+provided flake to install the package or use the Home Manager module to
+configure the service automatically. We recommend the Home Manager route.
+
+#### Home Manager (Recommended)
+
+Add this to your `flake.nix`:
+
+```nix
+{
+  inputs = {
+    # ...
+    postar = {
+      url = "github:filiptrplan/postar";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+  outputs =
+    {
+    ...
+    }@inputs:
+  {
+    # do not forget to pass the inputs as extraSpecialArgs!
+    # ...
+    home-manager.extraSpecialArgs = {
+      inherit inputs;
+    };
+    # ...
+  }
+}
+```
+
+Then enable it in your Home Manager configuration
+
+```nix
+programs.postar = {
+  enable = true;
+  # You can also configure config.toml and rules.ptar here
+  config = { };
+  rules = '''';
+};
+services.postar.enable = true;
+```
+
+For the complete configuration option refer to the [module file](./hm-module.nix).
+
+#### Flake
+
+Add this to your `flake.nix`:
+
+```nix
+{
+  inputs = {
+    postar = {
+      url = "github:filiptrplan/postar";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+}
+```
+
+Now you can access the package at:
+
+```nix
+inputs.postar.${pkgs.system}.default
+```
+
 ## Getting started
 
 1. Install the program. This is covered under [Installation](#installation).
@@ -246,7 +332,7 @@ mailbox. This section can be repeated any number of times.
   - [ ] documentation AND man pages!
     - [x] clap_mangen
   - [ ] documentation
-    - [ ] installation documentation
+    - [x] installation documentation
     - [x] complete documentation for the TOML configuration file
     - [x] direct the user to the --help flags or man pages for the cli reference
       - [ ] fill in the description and long about sections for the commands
