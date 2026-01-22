@@ -20,7 +20,7 @@ default: build
 build:
     cargo build --release
 
-extract-assets: build
+extract-assets: build clean-assets
     @echo "Extracting assets from build cache..."
     @mkdir -p dist/man
     @mkdir -p dist/completions

@@ -1,12 +1,24 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH postar 1  "postar " 
+.TH postar 1  "postar 0.1.0" 
 .SH NAME
-postar \- The main struct describing the CLI args
+postar \- A local email filtering service
 .SH SYNOPSIS
-\fBpostar\fR [\fB\-c\fR|\fB\-\-config\fR] [\fB\-r\fR|\fB\-\-rules\fR] [\fB\-\-log\fR] [\fB\-s\fR|\fB\-\-server\fR] [\fB\-\-db\fR] [\fB\-\-polling\-delay\fR] [\fB\-\-check\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIsubcommands\fR]
+\fBpostar\fR [\fB\-c\fR|\fB\-\-config\fR] [\fB\-r\fR|\fB\-\-rules\fR] [\fB\-\-log\fR] [\fB\-s\fR|\fB\-\-server\fR] [\fB\-\-db\fR] [\fB\-\-polling\-delay\fR] [\fB\-\-check\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
 .SH DESCRIPTION
-The main struct describing the CLI args
+.PP
+This is a local email filtering program that watches for emails in the configured mailboxes and matches 
+the rules to emails and executes certain actions.
+.PP
+There are two main files you need to pay attention to: the config file and the rules file.
+.PP
+The config file is a simple TOML file which configures some global options that influence the programs
+execution. It is located at $XDG_CONFIG_HOME/postar/config.toml by default. For the complete reference
+of configuration options, refer to https://github.com/filiptrplan/postar?tab=readme\-ov\-file#toml\-configuration\-reference.
+.PP
+The rules file is written using a bespoke DSL and defines the rules to match against and the actions
+executed when those rules are matched. It is located at $XDG_CONFIG_HOME/postar/rules.ptar by default.
+For a complete reference and a short tutorial see https://github.com/filiptrplan/postar?tab=readme\-ov\-file#rule\-dsl.
 .SH OPTIONS
 .TP
 \fB\-c\fR, \fB\-\-config\fR \fI<CONFIG>\fR
@@ -47,6 +59,9 @@ Perform a dry run on the most recent 10 messages
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
 .SH SUBCOMMANDS
 .TP
 postar\-completions(1)
@@ -54,3 +69,5 @@ Outputs shell completions to stdout
 .TP
 postar\-init(1)
 Intializes the configuration files
+.SH VERSION
+v0.1.0

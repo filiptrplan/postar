@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_postar_global_optspecs
-	string join \n c/config= r/rules= log= s/server= db= polling-delay= check dry-run h/help
+	string join \n c/config= r/rules= log= s/server= db= polling-delay= check dry-run h/help V/version
 end
 
 function __fish_postar_needs_command
@@ -38,6 +38,7 @@ complete -c postar -n "__fish_postar_needs_command" -l polling-delay -d 'The pol
 complete -c postar -n "__fish_postar_needs_command" -l check -d 'Check whether the configuration is valid'
 complete -c postar -n "__fish_postar_needs_command" -l dry-run -d 'Perform a dry run on the most recent 10 messages'
 complete -c postar -n "__fish_postar_needs_command" -s h -l help -d 'Print help (see more with \'--help\')'
+complete -c postar -n "__fish_postar_needs_command" -s V -l version -d 'Print version'
 complete -c postar -n "__fish_postar_needs_command" -f -a "completions" -d 'Outputs shell completions to stdout'
 complete -c postar -n "__fish_postar_needs_command" -f -a "init" -d 'Intializes the configuration files'
 complete -c postar -n "__fish_postar_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'

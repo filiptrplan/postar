@@ -5,7 +5,8 @@
 <!-- prettier-ignore -->
 > [!NOTE]
 > **AI Disclosure**: AI coding tools have been involved in the making of this
-> project, but **only** in writing tests. All other bussiness logic is 100% human-made. The logo is also AI generated due to the lack of funds to commission an artist.
+> project, but **only** in writing tests. All other bussiness logic is 100% human-made. 
+> The logo is also AI generated due to the lack of funds to commission an artist.
 
 ## Who is this project for?
 
@@ -30,6 +31,18 @@ The main features include:
   me.
 - **QoL features**: Such as an interactive config generator, shell completions
   and man pages built-in.
+
+## Getting started
+
+1. Install the program. This is covered under [Installation](#installation).
+2. Configure a server/mailbox. The recommended way is to do this by running `postar
+init` and following the prompts. For more details consult [the configuration
+   chapter](#connection-configuration).
+3. Define your rules. The `postar init` command already generates an example
+   rules file at `~/.config/postar/rules.ptar`. For more information about
+   making your own rules, refer to [the rules chapter](#dsl).
+4. Launch the program by running `postar`.
+5. That's it! You are ready to take control of your email destiny!
 
 <a name="installation"></a>
 
@@ -129,20 +142,6 @@ Now you can access the package at:
 inputs.postar.${pkgs.system}.default
 ```
 
-## Getting started
-
-1. Install the program. This is covered under [Installation](#installation).
-2. Configure a server/mailbox. The recommended way is to do this by running `postar
-init` and following the prompts. For more details consult [the configuration
-   chapter](#connection-configuration).
-3. Define your rules. The `postar init` command already generates an example
-   rules file at `~/.config/postar/rules.ptar`. For more information about
-   making your own rules, refer to [the rules chapter](#dsl).
-4. Launch the program by running `postar`.
-5. That's it! You are ready to take control of your email destiny!
-
-<a name="connection-configuration"></a>
-
 ## CLI usage
 
 For the most up-to-date reference of what CLI options are available, run `postar
@@ -196,6 +195,8 @@ Options:
   -h, --help
           Print help (see a summary with '-h')
 ```
+
+<a name="connection-configuration"></a>
 
 ## Connection configuration
 
@@ -321,6 +322,7 @@ mailbox. This section can be repeated any number of times.
   - [ ] maybe move to facet(?)
   - [ ] comments in ptar rules
   - [ ] ability to import text files as lists
+  - [ ] llm filtering?
 - [ ] for completion:
   - [ ] Functionality
     - [ ] encrypt the passwords at least somewhat!
@@ -335,6 +337,6 @@ mailbox. This section can be repeated any number of times.
     - [x] installation documentation
     - [x] complete documentation for the TOML configuration file
     - [x] direct the user to the --help flags or man pages for the cli reference
-      - [ ] fill in the description and long about sections for the commands
-      - [ ] document all the flags extensively
+      - [x] fill in the description and long about sections for the commands
+      - [x] document all the flags extensively
     - [ ] complete DSL documentation with some more examples

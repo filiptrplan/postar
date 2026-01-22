@@ -41,7 +41,7 @@ _postar() {
 
     case "${cmd}" in
         postar)
-            opts="-c -r -s -h --config --rules --log --server --db --polling-delay --check --dry-run --help completions init help"
+            opts="-c -r -s -h -V --config --rules --log --server --db --polling-delay --check --dry-run --help --version completions init help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
