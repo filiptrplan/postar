@@ -262,12 +262,9 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
         response
             .into_iter()
             .map(|x| {
-                let body = x
-                    .body()
-                    .ok_or(anyhow::format_err!("Message {:?} has no body", x.uid))?
-                    .to_owned();
-                let uid = x.uid.ok_or(anyhow::format_err!("Message has no UID"))?;
-                Ok(Message::new(containing_folder.clone(), uid, body)?)
+                let body = x.body().map(|x| x.to_owned()).unwrap_or(Vec::new());
+                let uid = x.uid.ok_or(anyhow::format_err!("Message has no UID."))?;
+                Message::new(containing_folder.clone(), uid, body)
             })
             .collect::<Result<Vec<Message>, _>>()
     }
