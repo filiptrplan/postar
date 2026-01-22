@@ -112,7 +112,6 @@ with lib;
         };
         Install = {
           WantedBy = [ "default.target" ];
-          Restart = "on-failure";
         };
         Service = {
           ExecStart = "${cfgService.package}/bin/postar";
