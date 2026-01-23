@@ -25,6 +25,9 @@ _postar() {
             postar,init)
                 cmd="postar__init"
                 ;;
+            postar,list-folders)
+                cmd="postar__list__folders"
+                ;;
             postar__help,completions)
                 cmd="postar__help__completions"
                 ;;
@@ -34,6 +37,9 @@ _postar() {
             postar__help,init)
                 cmd="postar__help__init"
                 ;;
+            postar__help,list-folders)
+                cmd="postar__help__list__folders"
+                ;;
             *)
                 ;;
         esac
@@ -41,7 +47,7 @@ _postar() {
 
     case "${cmd}" in
         postar)
-            opts="-c -r -s -h -V --config --rules --log --server --db --polling-delay --check --dry-run --help --version completions init help"
+            opts="-c -r -s -h -V --config --rules --log --server --db --polling-delay --check --dry-run --help --version completions init list-folders help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -160,7 +166,7 @@ _postar() {
             return 0
             ;;
         postar__help)
-            opts="completions init help"
+            opts="completions init list-folders help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -215,6 +221,20 @@ _postar() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        postar__help__list__folders)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         postar__init)
             opts="-h --custom-path --write-example-rules --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -237,6 +257,20 @@ _postar() {
                     fi
                     return 0
                     ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        postar__list__folders)
+            opts="-h --help [SERVER] [CONFIG]"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
                 *)
                     COMPREPLY=()
                     ;;

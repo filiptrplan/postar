@@ -2,11 +2,18 @@
 .el .ds Aq '
 .TH postar-init 1  "init " 
 .SH NAME
-postar\-init \- Intializes the configuration files
+postar\-init \- Initializes the configuration files
 .SH SYNOPSIS
 \fBpostar init\fR [\fB\-\-custom\-path\fR] [\fB\-\-write\-example\-rules\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
-Intializes the configuration files
+.PP
+This command launches an interactive wizard that initializes the two main configuration files. 
+It takes you through configuring a mailbox, global options and asks you whether you want to include
+the example rules file. 
+.PP
+It is recommended to use this command to get up and started quickly, though you will have to write
+the rules themselves. Refer to the man page for postar for more information about the configuration
+files.
 .SH OPTIONS
 .TP
 \fB\-\-custom\-path\fR \fI<CUSTOM_PATH>\fR

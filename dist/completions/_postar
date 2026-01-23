@@ -20,8 +20,8 @@ _postar() {
 '-r+[Path to the PTAR rules file]:RULES:_files' \
 '--rules=[Path to the PTAR rules file]:RULES:_files' \
 '--log=[The logging level]:LOG:(off error warn info debug trace)' \
-'-s+[The server that postar connects to]:SERVER:_hosts' \
-'--server=[The server that postar connects to]:SERVER:_hosts' \
+'-s+[The server that postar connects to]:SERVER:_default' \
+'--server=[The server that postar connects to]:SERVER:_default' \
 '--db=[Path to the persistent database. Ordinary users should not change this option]:DB:_files' \
 '--polling-delay=[The polling delay when using the polling method for inboxes]:POLLING_DELAY:_default' \
 '--check[Check whether the configuration is valid]' \
@@ -41,8 +41,8 @@ _postar() {
         case $line[1] in
             (completions)
 _arguments "${_arguments_options[@]}" : \
-'-h[Print help]' \
-'--help[Print help]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
 ':shell:(zsh fish bash)' \
 && ret=0
 ;;
@@ -52,6 +52,14 @@ _arguments "${_arguments_options[@]}" : \
 '--write-example-rules[Whether to write a sample rules.ptar file to the default path]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(list-folders)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'::server -- Server to fetch the folders from. Specified in the config:_default' \
+'::config -- Custom config file:_files' \
 && ret=0
 ;;
 (help)
@@ -74,6 +82,10 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(list-folders)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -90,8 +102,9 @@ esac
 (( $+functions[_postar_commands] )) ||
 _postar_commands() {
     local commands; commands=(
-'completions:Outputs shell completions to stdout' \
-'init:Intializes the configuration files' \
+'completions:Outputs shell completions to stdout.' \
+'init:Initializes the configuration files' \
+'list-folders:Lists all the folders for a specific mailbox' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'postar commands' commands "$@"
@@ -104,8 +117,9 @@ _postar__completions_commands() {
 (( $+functions[_postar__help_commands] )) ||
 _postar__help_commands() {
     local commands; commands=(
-'completions:Outputs shell completions to stdout' \
-'init:Intializes the configuration files' \
+'completions:Outputs shell completions to stdout.' \
+'init:Initializes the configuration files' \
+'list-folders:Lists all the folders for a specific mailbox' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'postar help commands' commands "$@"
@@ -125,10 +139,20 @@ _postar__help__init_commands() {
     local commands; commands=()
     _describe -t commands 'postar help init commands' commands "$@"
 }
+(( $+functions[_postar__help__list-folders_commands] )) ||
+_postar__help__list-folders_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar help list-folders commands' commands "$@"
+}
 (( $+functions[_postar__init_commands] )) ||
 _postar__init_commands() {
     local commands; commands=()
     _describe -t commands 'postar init commands' commands "$@"
+}
+(( $+functions[_postar__list-folders_commands] )) ||
+_postar__list-folders_commands() {
+    local commands; commands=()
+    _describe -t commands 'postar list-folders commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_postar" ]; then

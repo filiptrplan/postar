@@ -45,7 +45,7 @@ pub struct Args {
     ///
     /// It can be either specified in the config file by settings the default option to true or
     /// by passing in this flag.
-    #[arg(long, short, value_hint=ValueHint::Hostname)]
+    #[arg(long, short)]
     pub server: Option<String>,
     /// Path to the persistent database. Ordinary users should not change this option.
     #[arg(long, value_hint=ValueHint::FilePath)]
@@ -97,6 +97,21 @@ the rules themselves. Refer to the man page for postar for more information abou
 files."
     )]
     Init(InitArgs),
+    #[command(
+        about = "Lists all the folders for a specific mailbox",
+        long_about = "
+This command lists all the folder for a specific mailbox. Useful for specifying destination folders in your rules file.
+"
+    )]
+    ListFolders(ListFoldersArgs),
+}
+
+#[derive(clap::Args)]
+pub struct ListFoldersArgs {
+    /// Server to fetch the folders from. Specified in the config
+    pub server: Option<String>,
+    /// Custom config file
+    pub config: Option<PathBuf>,
 }
 
 #[derive(clap::Args)]

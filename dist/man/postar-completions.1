@@ -2,15 +2,22 @@
 .el .ds Aq '
 .TH postar-completions 1  "completions " 
 .SH NAME
-postar\-completions \- Outputs shell completions to stdout
+postar\-completions \- Outputs shell completions to stdout.
 .SH SYNOPSIS
 \fBpostar completions\fR [\fB\-h\fR|\fB\-\-help\fR] <\fISHELL\fR> 
 .SH DESCRIPTION
-Outputs shell completions to stdout
+.PP
+This command outputs shell completions to stdout. It can be used either in the respective 
+shell rc files at startup or just as a one\-time command.
+.PP
+Here is an example of how it would be used for the zsh shell:
+.PP
+    eval "$(postar completions zsh)" &> /dev/null
+.PP
 .SH OPTIONS
 .TP
 \fB\-h\fR, \fB\-\-help\fR
-Print help
+Print help (see a summary with \*(Aq\-h\*(Aq)
 .TP
 <\fISHELL\fR>
 

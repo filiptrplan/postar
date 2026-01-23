@@ -220,6 +220,38 @@ fn initialize_config(args: &InitArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn list_folders(args: &ListFoldersArgs) -> anyhow::Result<()> {
+    let config_path = match &args.config {
+        Some(path) => path.clone(),
+        None => default_toml_config_path()?,
+    };
+
+    let db_path = default_db_path()?;
+
+    log::info!("Reading config file from: {:?}", config_path);
+    let config = Config::from_file(&config_path).with_context(|| "Failed to read config file")?;
+
+    let server = if let Some(server) = &args.server {
+        config
+            .imap
+            .iter()
+            .find(|imap| &imap.name == server)
+            .ok_or_else(|| anyhow::anyhow!("Failed to find server {} in the config file", server))?
+    } else {
+        config.imap.iter().find(|imap| imap.default)
+            .ok_or_else(|| anyhow::anyhow!("Failed to find a default server. Specify it either with the `default` option in the config file or with the `--server` flag."))?
+    };
+
+    let mut inbox = IMAPInbox::from_config(&config.postar, server, db_path)
+        .with_context(|| "Error while connecting to server")?;
+
+    let folders = inbox.list_folders()?;
+    log::info!("Listing all folders...");
+    folders.iter().for_each(|f| println!("{}", f.name));
+
+    Ok(())
+}
+
 /// The main program loop
 pub fn run() -> anyhow::Result<()> {
     let args = <Args as clap::Parser>::parse();
@@ -234,6 +266,10 @@ pub fn run() -> anyhow::Result<()> {
         }
         Some(Subcommands::Completions { shell }) => {
             print_completions(shell);
+            return Ok(());
+        }
+        Some(Subcommands::ListFolders(args)) => {
+            list_folders(&args)?;
             return Ok(());
         }
     }

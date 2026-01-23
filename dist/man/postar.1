@@ -25,11 +25,15 @@ For a complete reference and a short tutorial see https://github.com/filiptrplan
 Path to the TOML config file.
 
 This specifies things like default flags and all the connection details.
+
+Configuration reference: https://github.com/filiptrplan/postar?tab=readme\-ov\-file#toml\-configuration\-reference
 .TP
 \fB\-r\fR, \fB\-\-rules\fR \fI<RULES>\fR
 Path to the PTAR rules file.
 
 This specifies how the emails should be filtered and which actions should be executed upon rule match.
+
+Rule reference: https://github.com/filiptrplan/postar?tab=readme\-ov\-file#rule\-dsl
 .TP
 \fB\-\-log\fR \fI<LOG>\fR [default: info]
 The logging level
@@ -65,9 +69,12 @@ Print version
 .SH SUBCOMMANDS
 .TP
 postar\-completions(1)
-Outputs shell completions to stdout
+Outputs shell completions to stdout.
 .TP
 postar\-init(1)
-Intializes the configuration files
+Initializes the configuration files
+.TP
+postar\-list\-folders(1)
+Lists all the folders for a specific mailbox
 .SH VERSION
 v0.1.0

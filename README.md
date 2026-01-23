@@ -152,9 +152,10 @@ as of the time of writing, but is not guaranteed to be updated.
 Usage: postar [OPTIONS] [COMMAND]
 
 Commands:
-  completions  Outputs shell completions to stdout
-  init         Intializes the configuration files
-  help         Print this message or the help of the given subcommand(s)
+  completions   Outputs shell completions to stdout.
+  init          Initializes the configuration files
+  list-folders  Lists all the folders for a specific mailbox
+  help          Print this message or the help of the given subcommand(s)
 
 Options:
   -c, --config <CONFIG>
@@ -162,10 +163,14 @@ Options:
 
           This specifies things like default flags and all the connection details.
 
+          Configuration reference: https://github.com/filiptrplan/postar?tab=readme-ov-file#toml-configuration-reference
+
   -r, --rules <RULES>
           Path to the PTAR rules file.
 
           This specifies how the emails should be filtered and which actions should be executed upon rule match.
+
+          Rule reference: https://github.com/filiptrplan/postar?tab=readme-ov-file#rule-dsl
 
       --log <LOG>
           The logging level
@@ -194,6 +199,9 @@ Options:
 
   -h, --help
           Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 <a name="connection-configuration"></a>

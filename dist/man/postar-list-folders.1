@@ -1,0 +1,20 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH postar-list-folders 1  "list-folders " 
+.SH NAME
+postar\-list\-folders \- Lists all the folders for a specific mailbox
+.SH SYNOPSIS
+\fBpostar list\-folders\fR [\fB\-h\fR|\fB\-\-help\fR] [\fISERVER\fR] [\fICONFIG\fR] 
+.SH DESCRIPTION
+.PP
+This command lists all the folder for a specific mailbox. Useful for specifying destination folders in your rules file.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help (see a summary with \*(Aq\-h\*(Aq)
+.TP
+[\fISERVER\fR]
+Server to fetch the folders from. Specified in the config
+.TP
+[\fICONFIG\fR]
+Custom config file
