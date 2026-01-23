@@ -308,6 +308,8 @@ mailbox. This section can be repeated any number of times.
 ## TODO
 
 - [ ] Nice to have
+  - [ ] list all folders - so we know what the destinations are
+  - [ ] dry run on local files
   - [ ] benchmarking of performance
   - [ ] graceful shutdown for closing imap connection
     - [ ] would be hard to do because the interrupt handler would need to share
