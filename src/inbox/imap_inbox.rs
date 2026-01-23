@@ -4,6 +4,7 @@ use crate::{
     migrations::MIGRATIONS,
 };
 use anyhow::Context;
+use chumsky::prelude::any;
 use imap::{
     Session,
     extensions::idle::SetReadTimeout,
@@ -214,6 +215,20 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
             "SELECT statement didn't return a UID VALIDITY"
         ))?;
 
+        // Calculate the highest / next UID. This is so we don't fetch all the messages when
+        // polling but only "new" ones when opening a mailbox for the first time.
+        let highest_uid = mailbox.uid_next.map(Ok).unwrap_or_else(|| {
+            let query = "*:*";
+            let fetch_results = self.imap_session.uid_fetch(query, "UID")?;
+            fetch_results
+                .iter()
+                .filter_map(|msg| msg.uid)
+                .max()
+                .ok_or_else(|| {
+                    anyhow::format_err!("Cannot get highest UID: folder empty or UIDs missing.")
+                })
+        })?;
+
         match uid_validity {
             Some(uid_validity) => {
                 // Invalidate last_seen_uid if we don't have the same uid validity
@@ -222,14 +237,14 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
                         "Invalidating last_seen_uid for server {} folder {}",
                         self.server_user_id, folder.name
                     );
-                    self.conn.execute("UPDATE imap_folders SET uid_validity=?1, last_seen_uid=NULL WHERE server_id = ?2 AND name = ?3", params![mailbox.uid_validity, self.server_user_id, folder.name])?;
+                    self.conn.execute("UPDATE imap_folders SET uid_validity=?1, last_seen_uid=?2 WHERE server_id = ?3 AND name = ?4", params![mailbox.uid_validity, self.server_user_id, folder.name, highest_uid])?;
                 }
             }
             None => {
                 // Else insert a new row
                 self.conn.execute(
-                    "INSERT INTO imap_folders (server_id, name, uid_validity) VALUES (?1, ?2, ?3)",
-                    params![self.server_user_id, folder.name, mailbox_validity],
+                    "INSERT INTO imap_folders (server_id, name, uid_validity, last_seen_uid) VALUES (?1, ?2, ?3, ?4)",
+                    params![self.server_user_id, folder.name, mailbox_validity, highest_uid],
                 )?;
             }
         }
@@ -261,6 +276,7 @@ impl<T: Read + Write + SetReadTimeout> IMAPInbox<T> {
     ) -> Vec<Message> {
         response
             .into_iter()
+            // We ignore messages with no UID and default to an empty body if there is none
             .filter_map(|x| {
                 {
                     let body = x.body().map(|x| x.to_owned()).unwrap_or(Vec::new());
@@ -312,7 +328,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             .fetch("1:*", "(FLAGS RFC822 UID)")
             .with_context(|| format!("Failed to fetch all messages in folder {}", folder.name))?;
 
-        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+        Ok(IMAPInbox::<T>::fetch_response_to_messages(messages, folder))
     }
 
     fn move_message_to_folder(
@@ -447,7 +463,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
             .fetch(uid_range, "(FLAGS RFC822 UID)")
             .with_context(|| format!("Failed to fetch all messages in folder {}", folder.name))?;
 
-        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+        Ok(IMAPInbox::<T>::fetch_response_to_messages(messages, folder))
     }
 
     fn fetch_top_n_messages_in_folder(
@@ -497,7 +513,7 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
                 )
             })?;
 
-        IMAPInbox::<T>::fetch_response_to_messages(messages, folder)
+        Ok(IMAPInbox::<T>::fetch_response_to_messages(messages, folder))
     }
 }
 
