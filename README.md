@@ -32,6 +32,35 @@ The main features include:
 - **QoL features**: Such as an interactive config generator, shell completions
   and man pages built-in.
 
+<!-- mtoc-start -->
+
+- [Getting Started](#getting-started)
+- [Installation](#installation)
+  - [Cargo](#cargo)
+  - [Nix](#nix)
+    - [Home Manager (Recommended)](#home-manager-recommended)
+    - [Flake](#flake)
+- [CLI Usage](#cli-usage)
+- [Default File Paths](#default-file-paths)
+- [Connection Configuration](#connection-configuration)
+  - [TOML Configuration Reference](#toml-configuration-reference)
+    - [`[postar]` section](#postar-section)
+    - [`[[imap]]` section](#imap-section)
+- [Rule DSL -- PTAR](#rule-dsl----ptar)
+  - [Core Concepts](#core-concepts)
+  - [Syntax](#syntax)
+    - [Folder Definition](#folder-definition)
+    - [Rule Definition](#rule-definition)
+    - [Matchers](#matchers)
+    - [Actions](#actions)
+  - [Formal Syntax and Grammar](#formal-syntax-and-grammar)
+  - [Comments](#comments)
+  - [Some Simple Examples](#some-simple-examples)
+  - [Debugging and Testing](#debugging-and-testing)
+- [TODO](#todo)
+
+<!-- mtoc-end -->
+
 ## Getting Started
 
 1. Install the program. This is covered under [Installation](#installation).
@@ -41,7 +70,7 @@ init` and following the prompts. For more details consult [the configuration
 3. Define your rules. The `postar init` command already generates an example
    rules file at `~/.config/postar/rules.ptar`. For more information about
    making your own rules, refer to [the rules chapter](#dsl).
-4. Launch the program by running `postar`.
+4. Launch the program by running Postar.
 5. That's it! You are ready to take control of your email destiny!
 
 <a name="installation"></a>
@@ -56,7 +85,7 @@ service and configuration with our included Home Manager module.
 
 ### Cargo
 
-You can install `postar` by running:
+You can install Postar by running:
 
 ```bash
 cargo install postar
@@ -150,11 +179,25 @@ documentation there in order to get the latest information, as the README will
 quickly become outdated when it comes to the exact syntax of flags or order of
 options.
 
+## Default File Paths
+
+Postar relies on 3 files to startup and function. Here we provide their
+default paths (but all can be changed with the right CLI flags).
+
+- `config.toml`: `~/.config/postar/config.toml`
+- `rules.ptar`: `~/.config/postar/rules.ptar`
+- `postar.db`: `~/.local/share/postar/postar.db`
+
+We recommend that you don't mess with the `postar.db` file if you are intimately
+familiar with the codebase, except when recommended to do so by a maintainer.
+This file stores all the persistent data Postar needs to keep track of to
+function properly.
+
 <a name="connection-configuration"></a>
 
 ## Connection Configuration
 
-Currently, `postar` only supports IMAP servers with POP3 support planned for the
+Currently, Postar only supports IMAP servers with POP3 support planned for the
 future but currently not a priority as most modern email providers support IMAP.
 
 > [!IMPORTANT]
@@ -162,7 +205,7 @@ future but currently not a priority as most modern email providers support IMAP.
 
 To interactively generate a connection configuration file you can use the `init`
 command. This command will take you through an interactive questionnaire to let
-you configure your IMAP servers and global `postar` configuration
+you configure your IMAP servers and global Postar configuration
 
 ```bash
 postar init
