@@ -32,6 +32,8 @@ The main features include:
 - **QoL features**: Such as an interactive config generator, shell completions
   and man pages built-in.
 
+## Table of Contents
+
 <!-- mtoc-start -->
 
 - [Getting Started](#getting-started)
