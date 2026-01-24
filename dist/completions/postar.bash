@@ -47,7 +47,7 @@ _postar() {
 
     case "${cmd}" in
         postar)
-            opts="-c -r -s -h -V --config --rules --log --server --db --polling-delay --check --dry-run --help --version completions init list-folders help"
+            opts="-c -r -s -h -V --config --rules --log --server --db --polling-delay --check --dry-run-remote --dry-run-local --help --version completions init list-folders help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -142,6 +142,13 @@ _postar() {
                     ;;
                 --polling-delay)
                     COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --dry-run-local)
+                    COMPREPLY=()
+                    if [[ "${BASH_VERSINFO[0]}" -ge 4 ]]; then
+                        compopt -o plusdirs
+                    fi
                     return 0
                     ;;
                 *)

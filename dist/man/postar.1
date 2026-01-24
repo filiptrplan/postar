@@ -4,7 +4,7 @@
 .SH NAME
 postar \- A local email filtering service
 .SH SYNOPSIS
-\fBpostar\fR [\fB\-c\fR|\fB\-\-config\fR] [\fB\-r\fR|\fB\-\-rules\fR] [\fB\-\-log\fR] [\fB\-s\fR|\fB\-\-server\fR] [\fB\-\-db\fR] [\fB\-\-polling\-delay\fR] [\fB\-\-check\fR] [\fB\-\-dry\-run\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
+\fBpostar\fR [\fB\-c\fR|\fB\-\-config\fR] [\fB\-r\fR|\fB\-\-rules\fR] [\fB\-\-log\fR] [\fB\-s\fR|\fB\-\-server\fR] [\fB\-\-db\fR] [\fB\-\-polling\-delay\fR] [\fB\-\-check\fR] [\fB\-\-dry\-run\-remote\fR] [\fB\-\-dry\-run\-local\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fB\-V\fR|\fB\-\-version\fR] [\fIsubcommands\fR]
 .SH DESCRIPTION
 .PP
 This is a local email filtering program that watches for emails in the configured mailboxes and matches 
@@ -58,8 +58,13 @@ This is relevant when the IDLE capability for IMAP inboxes is not available so t
 \fB\-\-check\fR
 Check whether the configuration is valid
 .TP
-\fB\-\-dry\-run\fR
+\fB\-\-dry\-run\-remote\fR
 Perform a dry run on the most recent 10 messages
+.TP
+\fB\-\-dry\-run\-local\fR \fI<DRY_RUN_LOCAL>\fR
+Peform a dry run on messages stored locally on disk.
+
+The argument for this option is a folder containing .eml files that the dry run will be pefromed on
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help (see a summary with \*(Aq\-h\*(Aq)

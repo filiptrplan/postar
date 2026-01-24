@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_postar_global_optspecs
-	string join \n c/config= r/rules= log= s/server= db= polling-delay= check dry-run h/help V/version
+	string join \n c/config= r/rules= log= s/server= db= polling-delay= check dry-run-remote dry-run-local= h/help V/version
 end
 
 function __fish_postar_needs_command
@@ -35,8 +35,9 @@ trace\t''"
 complete -c postar -n "__fish_postar_needs_command" -s s -l server -d 'The server that postar connects to' -r
 complete -c postar -n "__fish_postar_needs_command" -l db -d 'Path to the persistent database. Ordinary users should not change this option' -r -F
 complete -c postar -n "__fish_postar_needs_command" -l polling-delay -d 'The polling delay when using the polling method for inboxes' -r
+complete -c postar -n "__fish_postar_needs_command" -l dry-run-local -d 'Peform a dry run on messages stored locally on disk' -r -f -a "(__fish_complete_directories)"
 complete -c postar -n "__fish_postar_needs_command" -l check -d 'Check whether the configuration is valid'
-complete -c postar -n "__fish_postar_needs_command" -l dry-run -d 'Perform a dry run on the most recent 10 messages'
+complete -c postar -n "__fish_postar_needs_command" -l dry-run-remote -d 'Perform a dry run on the most recent 10 messages'
 complete -c postar -n "__fish_postar_needs_command" -s h -l help -d 'Print help (see more with \'--help\')'
 complete -c postar -n "__fish_postar_needs_command" -s V -l version -d 'Print version'
 complete -c postar -n "__fish_postar_needs_command" -f -a "completions" -d 'Outputs shell completions to stdout.'
