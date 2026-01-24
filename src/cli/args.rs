@@ -61,7 +61,13 @@ pub struct Args {
     pub check: bool,
     /// Perform a dry run on the most recent 10 messages.
     #[arg(long, default_value_t = false)]
-    pub dry_run: bool,
+    pub dry_run_remote: bool,
+    /// Peform a dry run on messages stored locally on disk.
+    ///
+    /// The argument for this option is a folder containing .eml files that the dry run will be
+    /// pefromed on
+    #[arg(long, value_hint=ValueHint::DirPath)]
+    pub dry_run_local: Option<PathBuf>,
     /// Special subcommands for things like initializing the configuration and completion
     /// generation
     #[command(subcommand)]

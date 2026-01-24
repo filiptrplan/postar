@@ -145,64 +145,10 @@ inputs.postar.${pkgs.system}.default
 ## CLI usage
 
 For the most up-to-date reference of what CLI options are available, run `postar
---help` or read the manpages at `man postar`. Here is the output of this command
-as of the time of writing, but is not guaranteed to be updated.
-
-```txt
-Usage: postar [OPTIONS] [COMMAND]
-
-Commands:
-  completions   Outputs shell completions to stdout.
-  init          Initializes the configuration files
-  list-folders  Lists all the folders for a specific mailbox
-  help          Print this message or the help of the given subcommand(s)
-
-Options:
-  -c, --config <CONFIG>
-          Path to the TOML config file.
-
-          This specifies things like default flags and all the connection details.
-
-          Configuration reference: https://github.com/filiptrplan/postar?tab=readme-ov-file#toml-configuration-reference
-
-  -r, --rules <RULES>
-          Path to the PTAR rules file.
-
-          This specifies how the emails should be filtered and which actions should be executed upon rule match.
-
-          Rule reference: https://github.com/filiptrplan/postar?tab=readme-ov-file#rule-dsl
-
-      --log <LOG>
-          The logging level
-
-          [default: info]
-          [possible values: off, error, warn, info, debug, trace]
-
-  -s, --server <SERVER>
-          The server that postar connects to.
-
-          It can be either specified in the config file by settings the default option to true or by passing in this flag.
-
-      --db <DB>
-          Path to the persistent database. Ordinary users should not change this option
-
-      --polling-delay <POLLING_DELAY>
-          The polling delay when using the polling method for inboxes.
-
-          This is relevant when the IDLE capability for IMAP inboxes is not available so the program must poll. This can be either specified as a flag or in the config file.
-
-      --check
-          Check whether the configuration is valid
-
-      --dry-run
-          Perform a dry run on the most recent 10 messages
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
-```
+--help` or read the manpages at `man postar`. We encourage you to read the
+documentation there in order to get the latest information, as the README will
+quickly become outdated when it comes to the exact syntax of flags or order of
+options.
 
 <a name="connection-configuration"></a>
 
@@ -316,8 +262,8 @@ mailbox. This section can be repeated any number of times.
 ## TODO
 
 - [ ] Nice to have
-  - [ ] list all folders - so we know what the destinations are
-  - [ ] dry run on local files
+  - [x] list all folders - so we know what the destinations are
+  - [x] dry run on local files
   - [ ] benchmarking of performance
   - [ ] graceful shutdown for closing imap connection
     - [ ] would be hard to do because the interrupt handler would need to share

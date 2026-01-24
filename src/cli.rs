@@ -10,7 +10,7 @@ use std::{io, path::PathBuf};
 use crate::{
     config::{Config, IMAPConfig, PostarConfig},
     dsl::File,
-    inbox::{Folder, IMAPInbox, Inbox},
+    inbox::{Folder, IMAPInbox, Inbox, Message},
     process::{Action, Rule},
 };
 use anyhow::{Context, anyhow};
@@ -41,12 +41,37 @@ fn default_rules_path() -> anyhow::Result<PathBuf> {
     default_config_dir().map(|path| path.join("rules.ptar"))
 }
 
-/// Dry run functionality. Runs all the rules but doesn't execute anything
-fn dry_run(inbox: &mut impl Inbox, folder: &Folder, rules: &[Rule]) -> anyhow::Result<()> {
-    info!("Starting the dry run...");
+/// Runs a dry run on 10 most recent messages in a folder
+fn dry_run_remote(inbox: &mut impl Inbox, folder: &Folder, rules: &[Rule]) -> anyhow::Result<()> {
     info!("Fetching the 10 latest messages in folder {}", folder.name);
     let messages = inbox.fetch_top_n_messages_in_folder(folder, 10)?;
+    dry_run(messages, rules)?;
+    Ok(())
+}
 
+/// Runs a dry run on 10 most recent messages in a folder
+fn dry_run_local(folder_path: &PathBuf, rules: &[Rule]) -> anyhow::Result<()> {
+    let messages = {
+        let all_files = std::fs::read_dir(folder_path)?;
+        let folder = Folder::new("TEMP".to_owned());
+        let res = all_files
+            .filter_map(|x| x.ok())
+            .map(|f| f.path())
+            .filter(|f| f.extension().is_some_and(|ext| ext == "eml"))
+            .map(|f| {
+                let data = std::fs::read_to_string(f)?.as_bytes().to_owned();
+                Message::new(folder.clone(), 1, data)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok::<Vec<Message>, anyhow::Error>(res)
+    }?;
+    dry_run(messages, rules)?;
+    Ok(())
+}
+
+/// Dry run functionality. Runs all the rules but doesn't execute anything
+fn dry_run(messages: Vec<Message>, rules: &[Rule]) -> anyhow::Result<()> {
+    info!("Starting the dry run...");
     info!("Running {} rules on the messages.", rules.len());
 
     let mut deleted_count = 0;
@@ -323,8 +348,21 @@ pub fn run() -> anyhow::Result<()> {
 
     let folder = Folder::new(server.incoming_folder.clone());
 
-    if args.dry_run {
-        dry_run(&mut inbox, &folder, &rules)?;
+    if let Some(_) = args.dry_run_local
+        && args.dry_run_remote
+    {
+        return Err(anyhow::format_err!(
+            "Cannot use both --dry-run-remote and --dry-run-local flags at the same time."
+        ));
+    }
+
+    if args.dry_run_remote {
+        dry_run_remote(&mut inbox, &folder, &rules)?;
+        return Ok(());
+    }
+
+    if let Some(path) = args.dry_run_local {
+        dry_run_local(&path, &rules)?;
         return Ok(());
     }
 
