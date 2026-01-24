@@ -42,6 +42,7 @@ The main features include:
   - [Nix](#nix)
     - [Home Manager (Recommended)](#home-manager-recommended)
     - [Flake](#flake)
+  - [Shell Completions](#shell-completions)
 - [CLI Usage](#cli-usage)
 - [Default File Paths](#default-file-paths)
 - [Connection Configuration](#connection-configuration)
@@ -172,6 +173,21 @@ Now you can access the package at:
 
 ```nix
 inputs.postar.${pkgs.system}.default
+```
+
+### Shell Completions
+
+We also provide a way to install shell completions for Bash, Zsh and Fish. You
+can output them by running:
+
+```bash
+postar completions <shell>
+```
+
+To use the in Zsh, for example, put the following snippet in your `~/.zshrc`:
+
+```zshrc
+eval "$(postar completions zsh)" &> /dev/null
 ```
 
 ## CLI Usage
