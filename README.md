@@ -57,6 +57,7 @@ The main features include:
   - [Comments](#comments)
   - [Some Simple Examples](#some-simple-examples)
   - [Debugging and Testing](#debugging-and-testing)
+- [FAQs](#faqs)
 - [TODO](#todo)
 
 <!-- mtoc-end -->
@@ -515,6 +516,53 @@ The rule DSL doesn't have any syntax highlighting or LSP, so we recommend
 checking your configuration regularly with the `--check` flag and testing your
 rules with the `--dry-run-remote` and `--dry-run-local` flags. For more
 information about these options, refer to the manpages or `--help`.
+
+## FAQs
+
+**Q: Why build a custom solution instead of using server-side filters (like Gmail or Sieve)?**
+**A:** Because their interface is clunky and having local configuration files to
+edit is faster and totally tubular, duuude!
+
+**Q: Why did you create a custom DSL instead of using an existing language like Lua, TOML, or JSON?**
+**A:** I did it as a learning exercise and also because I believe it more simply
+captures the kind of filters I want. I think Lua would also be a great choice
+for more scripting-based approaches and I am looking to add support for it in
+the future.
+
+**Q: Is Postar an email client or just a filter?**
+**A:** It is an email filtering service, not an email client.
+
+**Q: Is AI used to read or analyze my emails?**
+**A:** No, it is not. That feature may be added in the future but it will be
+totally opt-in and out of your way.
+
+**Q: Does this work with Gmail, Outlook, or other major providers?**
+**A:** Yes, it does but requires some more configuration sometimes as we
+currently only support password-based authentication and these major providers
+demand OAuth.
+
+**Q: Does Postar support POP3?**
+**A:** Not yet.
+
+**Q: Can I use Postar to mark emails as "Read" or add custom tags?**
+**A:** Not yet, but functionality is planned.
+
+**Q: Can I filter emails based on the date they were sent?**
+**A:** Not yet.
+
+**Q: Does Postar scan the contents of email attachments?**
+**A:** No.
+
+**Q: How are my passwords stored in the configuration?**
+**A:** They are stored as plain-text and we are looking into better solutions as
+we speak!
+
+**Q: How can I test my rules safely without affecting my actual emails?**
+**A:** You can use the `--dry-run-local` or `--dry-run-remote` flags. To see
+what they do, treat yourself to a `--help` flag.
+
+**Q: Do I need to restart the service every time I change my rules file?**
+**A:** Yes, you do. We do not support hot-reloading.
 
 ## TODO
 
