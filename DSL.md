@@ -1,40 +1,5 @@
 # DSL Specification
 
-Postar uses a bespoke DSL to create rules.
-
-Requirements:
-
-- create rule: name, action, matcher
-- action: delete/move
-- matcher: and/or/not, subject, from, to, body
-- string_matcher: contains, startswith, equals, regex
-- string: utf-8 JSON-style escaped strings
-- folder: define globally then can be used
-- identifiers: snake_case with numbers
-
-Example:
-
-```txt
-folder test1 { name: "INBOX.tests1" }
-folder inbox { name: "INBOX" }
-
-rule simple_rule {
-  matcher: subject contains "TEST"
-  action: delete
-}
-
-rule complex_rule {
-  matcher: and [
-    subject contains "HI"
-    or [
-      to startswith "MyName"
-      not from contains "TEST"
-    ]
-  ]
-  action: moveto [test1]
-}
-```
-
 ## Grammar
 
 The grammar is written in [EBNF](https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form)

@@ -32,7 +32,7 @@ The main features include:
 - **QoL features**: Such as an interactive config generator, shell completions
   and man pages built-in.
 
-## Getting started
+## Getting Started
 
 1. Install the program. This is covered under [Installation](#installation).
 2. Configure a server/mailbox. The recommended way is to do this by running `postar
@@ -142,7 +142,7 @@ Now you can access the package at:
 inputs.postar.${pkgs.system}.default
 ```
 
-## CLI usage
+## CLI Usage
 
 For the most up-to-date reference of what CLI options are available, run `postar
 --help` or read the manpages at `man postar`. We encourage you to read the
@@ -152,7 +152,7 @@ options.
 
 <a name="connection-configuration"></a>
 
-## Connection configuration
+## Connection Configuration
 
 Currently, `postar` only supports IMAP servers with POP3 support planned for the
 future but currently not a priority as most modern email providers support IMAP.
@@ -194,7 +194,7 @@ username = "user2@example.org"
 password = "pass"
 ```
 
-### TOML configuration reference
+### TOML Configuration Reference
 
 We have two available sections. `[postar]` is the global configuration section
 where you can configure global options such as the polling delay for new emails.
@@ -257,7 +257,221 @@ mailbox. This section can be repeated any number of times.
 
 <a name="dsl"></a>
 
-## Rule DSL
+## Rule DSL -- PTAR
+
+Mostly as an exercise for myself, I have included a bespoke DSL for creating
+rules and logic to match against. I conceed that this could be better served by
+some language that has better tooling, but as I said, it is a learning exercise.
+
+So without further ado, let's dive into PTAR.
+
+### Core Concepts
+
+In PTAR we are working with two main types of objects:
+
+- **Folders**: These are currently just shortcuts to the actual folders in the
+  remote mailbox.
+- **Rules**: This is where the magic happens. All rules have a name so we can
+  reference them in the logs and then are further made up of _matchers_ and
+  _actions_.
+
+Let's discuss these two sub-objects.
+
+- **Matchers** are nested structures that define _when_ the rule will match a
+  certain email and therefore execute the defined action.
+- **Actions** define _what_ happen to the email when it is matched to a rule.
+  Currently these are quite limited.
+
+### Syntax
+
+The top-level of a PTAR file is made up of either folder or rule definitions.
+
+#### Folder Definition
+
+The core syntax for a folder definition is this:
+
+```
+folder <name> { name: "<name_in_mailbox>" }
+```
+
+Where both `<name>` and `<name_in_mailbox>` are mandatory. `<name>` is used to
+reference the folder internally in the file or in the logs, while
+`<name_in_mailbox>` is the actual folder name in the remote mailbox like
+`INBOX.Subfolder`.
+
+#### Rule Definition
+
+The core syntax for a rule definition is this:
+
+```
+rule <name> {
+  matcher: <matcher>
+  action: <action>
+}
+```
+
+As before, `<name>` is the internal rule name for use in logs. But now we have
+two more complex objects: `<matcher>` and `<action>`, which we will discuss in
+the next sections.
+
+#### Matchers
+
+The most basic matcher is built like this:
+
+```
+<section_to_match> <string_matcher> "<string_argument>"
+```
+
+Let's break these down to see how they make up a matcher:
+
+- `<section_to_match>` is something like a body, a recipient or a sender. This
+  defines what are we matching against.
+  - _Available values:_ `subject`, `from`, `to`, `body`
+- `<string_matcher>` is the type of matcher we are applying to the value. Just
+  looking at the available values will give you an idea of what this does.
+  - _Available values_: `contains`, `startswith`, `equals`, `regex`
+  - Just a note on the matchers besides `regex`: they are all case-insensitive.
+- `<string_argument>` is the argument of the above matchers. This could be the
+  string we want the value to contain or compare equality against. It must be
+  surrounded by double-quotes.
+
+But these basic matchers can also be combined and altered using logic relations.
+We will describe the available ones here.
+
+`and` and `or` represent the AND and OR logical relations. AND returns true if
+all the provided matchers are true and OR returns true if at least one provided
+matcher is true. The syntax for these is the following:
+
+```
+<and/or> [
+  <matcher1>
+  <matcher2>
+  ...
+  <matcherN>
+]
+```
+
+It is important to note that the list of matcher doesn't have any specific
+separators.
+
+We also provide the `not` operator which represents the NOT logical relation. It
+just inverts the result of the matcher. The syntax for it is the following:
+
+```
+not <basic_matcher>
+not ( <any_matcher> )
+```
+
+If you want to negate anything besides a basic matcher (the one with a section,
+string matcher and argument), you must wrap the matcher in parantheses.
+
+#### Actions
+
+There are currently only two actions: `delete` and `moveto`.
+
+The syntax for `delete` is as follows:
+
+```
+delete
+```
+
+Yes, really, that's it! What did you expect, an essay? I won't even bother
+explaining what it does.
+
+`moveto` is a bit more complex with this syntax:
+
+```
+moveto [ <name_of_folder> ]
+```
+
+> [!IMPORTANT]
+> It is important to note that the `<name_of_folder>` is not the actual name of
+> the folder in the mailbox, but the one you defined in the folder definitions!
+
+### Formal Syntax and Grammar
+
+If you are interested in the formal EBNF grammar for the language, refer to
+[DSL.md](./DSL.md).
+
+### Comments
+
+Comments are coming soon!
+
+### Some Simple Examples
+
+**Newsletter filtering**
+
+```
+folder newsletters {
+    name: "INBOX.Newsletters"
+}
+
+rule move_newsletters {
+    matcher: or [
+        from contains "substack.com"
+        subject startswith "[Newsletter]"
+        body contains "unsubscribe"
+    ]
+    action: moveto [newsletters]
+}
+```
+
+**Anti-crypto Shield**
+
+```
+rule delete_crypto_scams {
+    matcher: and [
+        not ( from equals "trustworthy_friend@example.com" )
+        or [
+            subject regex "URGENT:.*Wallet"
+            body regex "Bitcoin|BTC|Ethereum|ETH"
+        ]
+    ]
+    action: delete
+}
+```
+
+**Full Example**
+
+```
+folder trash { name: "INBOX.Trash" }
+folder bills { name: "INBOX.Bills" }
+folder social { name: "INBOX.Social" }
+
+rule kill_phishing {
+    matcher: subject regex "Verify.*(Password|Account|Bank)"
+    action: delete
+}
+
+rule move_socials {
+    matcher: or [
+        from contains "linkedin.com"
+        from contains "twitter.com"
+        from contains "facebook.com"
+        subject contains "New follower"
+    ]
+    action: moveto [social]
+}
+
+rule move_bills {
+    matcher: and [
+        not ( body contains "advertisement" )
+        or [
+            from contains "stripe.com"
+            from contains "paypal.com"
+            subject contains "Statement Available"
+        ]
+    ]
+    action: moveto [bills]
+}
+```
+
+### Debugging and Testing
+
+The rule DSL doesn't have any syntax highlighting or LSP, so we recommend
+checking your configuration regularly with the `--check` flag and testing your
+rules with the `--dry-run-remote` and `--dry-run-local` flags. For more
+information about these options, refer to the manpages or `--help`.
 
 ## TODO
 
