@@ -400,8 +400,19 @@ impl<T: Read + Write + SetReadTimeout> Inbox for IMAPInbox<T> {
         self.ensure_selected(folder)?;
         if self.capabilities.has_idle {
             loop {
-                let idle = self.imap_session.idle()?;
-                idle.wait_keepalive()?;
+                let mut idle = self.imap_session.idle()?;
+                // We change the timeout from the default 29 minutes to something more frequent
+                idle.set_keepalive(Duration::from_secs(60 * 5));
+
+                debug!("Starting IDLE for {}s", 60 * 5);
+                let mut idle_res = idle.wait_keepalive();
+
+                while let Err(err) = &idle_res {
+                    log::warn!("IDLE returned error {}. Retrying...", err);
+                    let mut idle = self.imap_session.idle()?;
+                    idle.set_keepalive(Duration::from_secs(60 * 5));
+                    idle_res = idle.wait_keepalive();
+                }
 
                 let last_uid = self.get_last_seen_uid(folder)?.unwrap_or(0);
 
